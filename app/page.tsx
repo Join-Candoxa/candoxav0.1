@@ -1,5 +1,4 @@
-'use client'
-
+// app/page.tsx — Root page, checks invite code then shows landing
 import Navbar from '@/components/landing/Navbar'
 import Hero from '@/components/landing/Hero'
 import Problem from '@/components/landing/Problem'
