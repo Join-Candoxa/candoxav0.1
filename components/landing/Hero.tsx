@@ -17,52 +17,60 @@ export default function Hero() {
         style={{
           backgroundImage: 'url(/hero-bg.png)',
           backgroundSize: 'cover',
-          backgroundPosition: 'center right',
+          backgroundPosition: 'center',
           opacity: 0.85,
         }}
       />
 
-      {/* Left fade */}
-      <div className="absolute inset-0 pointer-events-none"
+      {/* Mobile: bottom fade overlay */}
+      <div
+        className="absolute inset-0 pointer-events-none md:hidden"
+        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.7) 80%, black 100%)' }}
+      />
+
+      {/* Desktop: left fade */}
+      <div className="absolute inset-0 pointer-events-none hidden md:block"
         style={{ background: 'linear-gradient(to right, black 20%, transparent 60%)' }}
       />
 
-      <div className="max-w-7xl mx-auto px-6 w-full grid md:grid-cols-2 gap-4 items-center py-20 relative z-10">
+      <div className="max-w-7xl mx-auto px-5 md:px-6 w-full grid md:grid-cols-2 gap-4 items-center py-16 md:py-20 relative z-10">
 
-        {/* Left — Text */}
+        {/* Left / Main — Text */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7 }}
+          className="text-left"
         >
-          <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5 mb-6">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5 mb-5 md:mb-6">
             <div className="w-2 h-2 rounded-full bg-blue-500" />
-            <span className="text-white/70 text-xs">Permanent Identity On Chain</span>
+            <span className="text-white/70 text-xs">Trusted Identity Infrastructure</span>
           </div>
 
-          <h1 className="text-5xl md:text-6xl font-bold leading-tight mb-6 text-white">
-            Digital Identity
-            <br />
-            Onchain{' '}
-            <span className="text-blue-500">Forever</span>
+          <h1 className="text-[2.6rem] leading-[1.1] md:text-6xl font-bold mb-5 md:mb-6 text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
+            Your Work Deserves a<br />
+            Home That{' '}
+            <span className="text-blue-500">Lasts Forever</span>
           </h1>
 
-          <p className="text-white/60 text-base leading-relaxed mb-8 max-w-md">
-            Document your profile once. Prove them forever. Candoxa creates an immutable, professional record of everything you've built.
+          <p className="text-white/60 text-sm md:text-base leading-relaxed mb-7 md:mb-8 max-w-md">
+            Candoxa is the permanent identity layer for creators. Secure your achievements on-chain, share your record, and let your work speak for itself — forever.
           </p>
 
-          <div className="flex items-center gap-4 mb-8">
+          {/* Buttons */}
+          <div className="flex items-center gap-3 mb-7 md:mb-8 flex-wrap">
             <button
               onClick={() => router.push('/onboarding')}
-              className="bg-blue-600 hover:bg-blue-500 transition-colors text-white font-medium px-6 py-3 rounded-full"
+              className="bg-blue-600 hover:bg-blue-500 transition-colors text-white font-semibold text-sm px-5 py-3 rounded-full"
             >
-              Secure your Identity
+              Claim Your Identity
             </button>
             <button
               onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
-              className="border border-white/30 hover:border-white/50 transition-colors text-white font-medium px-6 py-3 rounded-full"
+              className="border border-white/30 hover:border-white/50 transition-colors text-white font-medium text-sm px-5 py-3 rounded-full"
             >
-              How It Works
+              See how it works
             </button>
           </div>
 
@@ -73,21 +81,21 @@ export default function Hero() {
                 <div key={i} className="w-8 h-8 rounded-full border-2 border-black" style={{ backgroundColor: color }} />
               ))}
             </div>
-            <span className="text-white/50 text-sm">Joined by 400+ creators in early access</span>
+            <span className="text-white/50 text-xs md:text-sm">Joined by 400+ creators in early access</span>
           </div>
         </motion.div>
 
-        {/* Right — Cards */}
+        {/* Right — Cards (desktop only full, mobile shows preview card below) */}
         <motion.div
           initial={{ opacity: 0, x: 40 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.8, delay: 0.2 }}
-          className="relative hidden md:flex flex-col gap-4"
-          style={{ marginRight: '-120px' }}
+          className="relative flex flex-col gap-4 md:gap-4 mt-10 md:mt-0"
+          style={{ marginRight: window?.innerWidth >= 768 ? '-120px' : '0' }}
         >
-          {/* Back card — bright blue */}
+          {/* Back card — bright blue (desktop only) */}
           <div
-            className="rounded-2xl p-6"
+            className="hidden md:block rounded-2xl p-6"
             style={{
               background: 'linear-gradient(135deg, #1d3ab8 0%, #2350d4 50%, #1a44cc 100%)',
               border: '1px solid rgba(100,140,255,0.3)',
@@ -105,9 +113,9 @@ export default function Hero() {
             </p>
           </div>
 
-          {/* Front card — dark */}
+          {/* Front / Mobile card */}
           <div
-            className="rounded-2xl p-6 shadow-2xl"
+            className="rounded-2xl p-5 md:p-6 shadow-2xl"
             style={{
               background: '#0c0f1d',
               border: '1px solid rgba(255,255,255,0.1)',
@@ -118,11 +126,11 @@ export default function Hero() {
                 <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5"><path d="M8 5v14l11-7z"/></svg>
               </div>
               <span className="text-white/80 text-sm font-medium">YouTube</span>
-              <div className="ml-auto border border-white/20 text-white/50 text-xs px-3 py-1 rounded-full">Secured</div>
+              <div className="ml-auto bg-blue-600/20 border border-blue-500/30 text-blue-300 text-xs px-3 py-1 rounded-full">Secured</div>
             </div>
 
-            <p className="text-white font-bold text-base mb-1">How I Grew to 1M Subscribers in 18 Months</p>
-            <p className="text-white/50 text-sm leading-relaxed mb-5">
+            <p className="text-white font-bold text-sm md:text-base mb-1">How I Grew to 1M Subscribers in 18 Months</p>
+            <p className="text-white/50 text-xs md:text-sm leading-relaxed mb-4 md:mb-5">
               Full breakdown of strategy, posting cadence, and the one video that changed everything. 1,040,000 views documented.
             </p>
 
@@ -130,21 +138,21 @@ export default function Hero() {
             <div className="rounded-xl p-3 mb-4" style={{ background: 'rgba(255,255,255,0.05)' }}>
               <div className="flex gap-2">
                 {[1,2,3,4,5].map((i) => (
-                  <div key={i} className="flex-1 h-14 rounded-lg" style={{ background: i === 1 ? '#3B5BDB' : i % 2 === 0 ? '#2d4bc0' : '#4263eb' }} />
+                  <div key={i} className="flex-1 h-12 md:h-14 rounded-lg" style={{ background: i === 1 ? '#3B5BDB' : i % 2 === 0 ? '#2d4bc0' : '#4263eb' }} />
                 ))}
               </div>
             </div>
 
             <div className="flex items-center justify-between">
               <span className="text-white/40 text-xs">@mkavinsky · Secured Feb 20, 2026 · Timestamped</span>
-              <button className="border border-white/20 text-white text-xs px-3 py-1.5 rounded-full">
+              <button className="hidden md:block border border-white/20 text-white text-xs px-3 py-1.5 rounded-full">
                 Identify ↗
               </button>
             </div>
           </div>
 
-          {/* Secured by Privy */}
-          <div className="flex justify-center items-center gap-2">
+          {/* Secured by Privy — desktop only */}
+          <div className="hidden md:flex justify-center items-center gap-2">
             <span className="text-white/30 text-xs">Secured by</span>
             <div className="flex items-center gap-1.5">
               <div className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
