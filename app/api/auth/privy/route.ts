@@ -86,10 +86,12 @@ export async function POST(req: NextRequest) {
       }
       supabaseUserId = newUser.user.id
       await supabaseAdmin.from('users').insert({
-        id: supabaseUserId, email,
-        wallet_address: walletAddress,
-        profile_strength: 0, plan: 'free',
-        created_at: new Date().toISOString(),
+        id:               supabaseUserId,
+        email,
+        wallet_address:   walletAddress,
+        profile_strength: 0,
+        plan:             'free',
+        created_at:       new Date().toISOString(),
       })
     }
 
@@ -99,9 +101,9 @@ export async function POST(req: NextRequest) {
         .eq('id', supabaseUserId)
     }
 
-    // 5. Generate magic link and extract OTP token from the URL
+    // 5. Generate magic link — get hashed_token for verifyOtp
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
+      type:  'magiclink',
       email,
     })
 
@@ -110,37 +112,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to generate link' }, { status: 500 })
     }
 
-    // Extract the token from action_link URL
-    // action_link looks like: https://xxx.supabase.co/auth/v1/verify?token=XXX&type=magiclink&...
-    const actionLink = (linkData as any)?.properties?.action_link
-      || (linkData as any)?.action_link
-      || ''
+    const properties  = (linkData as any)?.properties
+    const hashedToken = properties?.hashed_token
+    const actionLink  = properties?.action_link || ''
 
-    console.log('action_link:', actionLink)
+    let tokenToReturn = hashedToken
 
-    let otpToken: string | null = null
-
-    if (actionLink) {
+    // Fall back: extract token from action_link URL
+    if (!tokenToReturn && actionLink) {
       try {
         const url = new URL(actionLink)
-        otpToken = url.searchParams.get('token')
+        tokenToReturn = url.searchParams.get('token')
       } catch (e) {
-        console.error('Failed to parse action_link URL:', e)
+        console.error('Failed to parse action_link:', e)
       }
     }
 
-    // Also try hashed_token directly
-    const hashedToken = (linkData as any)?.properties?.hashed_token
-      || (linkData as any)?.hashed_token
-
-    const tokenToReturn = otpToken || hashedToken
+    console.log('hashed_token:', !!hashedToken, 'action_link token:', !!tokenToReturn)
 
     if (!tokenToReturn) {
       console.error('No token found. linkData:', JSON.stringify(linkData))
       return NextResponse.json({ error: 'Failed to extract token' }, { status: 500 })
     }
 
-    // Return email + token — client will call verifyOtp to get session
     return NextResponse.json({
       email,
       token:          tokenToReturn,

@@ -46,12 +46,12 @@ function SignInContent() {
         }
 
         const { error: verifyError } = await supabase.auth.verifyOtp({
-          email: data.email,
-          token: data.token,
-          type:  'magiclink',
+          token_hash: data.token,
+          type:       'magiclink',
         })
 
         if (verifyError) {
+          console.error('verifyOtp error:', verifyError)
           setError('Failed to establish session. Please try again.')
           setPrivyLoading(false)
           setPrivyTriggered(false)

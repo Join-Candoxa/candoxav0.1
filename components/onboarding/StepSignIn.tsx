@@ -34,7 +34,7 @@ export default function StepSignIn({ onNext, onBack }: Props) {
           return
         }
 
-        // Call API route — now returns { email, token } instead of session tokens
+        // Call API route — returns { email, token }
         const res = await fetch('/api/auth/privy', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -50,11 +50,10 @@ export default function StepSignIn({ onNext, onBack }: Props) {
           return
         }
 
-        // Verify the OTP token to create a real Supabase session
+        // Use token_hash to create a real Supabase session
         const { error: verifyError } = await supabase.auth.verifyOtp({
-          email: data.email,
-          token: data.token,
-          type:  'magiclink',
+          token_hash: data.token,
+          type:       'magiclink',
         })
 
         if (verifyError) {
