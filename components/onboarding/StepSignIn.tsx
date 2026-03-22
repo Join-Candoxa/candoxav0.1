@@ -18,19 +18,15 @@ export default function StepSignIn({ onNext, onBack }: Props) {
   const { login, getAccessToken, authenticated, ready, user: privyUser } = usePrivy()
   const router = useRouter()
 
-  // ── Watch for Privy auth completing ────────────────────────────────────────
+  // Watch for Privy auth completing then exchange token
   useEffect(() => {
-    if (!privyTriggered) return       // only run if user clicked Privy button
-    if (!authenticated) return        // wait until Privy confirms authenticated
-    if (!privyUser) return            // wait until user object is available
+    if (!privyTriggered || !authenticated || !privyUser) return
 
     const exchangeToken = async () => {
       setPrivyLoading(true)
       setError('')
       try {
-        // Get token — at this point authenticated=true so it should work
         const privyToken = await getAccessToken()
-
         if (!privyToken) {
           setError('Could not get token. Please try again.')
           setPrivyLoading(false)
@@ -38,7 +34,7 @@ export default function StepSignIn({ onNext, onBack }: Props) {
           return
         }
 
-        // Exchange for Supabase session
+        // Call API route — now returns { email, token } instead of session tokens
         const res = await fetch('/api/auth/privy', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -54,13 +50,15 @@ export default function StepSignIn({ onNext, onBack }: Props) {
           return
         }
 
-        // Set Supabase session
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token:  data.access_token,
-          refresh_token: data.refresh_token,
+        // Verify the OTP token to create a real Supabase session
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          email: data.email,
+          token: data.token,
+          type:  'magiclink',
         })
 
-        if (sessionError) {
+        if (verifyError) {
+          console.error('verifyOtp error:', verifyError)
           setError('Failed to establish session. Please try again.')
           setPrivyLoading(false)
           setPrivyTriggered(false)
@@ -81,7 +79,6 @@ export default function StepSignIn({ onNext, onBack }: Props) {
     exchangeToken()
   }, [authenticated, privyUser, privyTriggered])
 
-  // ── Google OAuth ───────────────────────────────────────────────────────────
   const handleGoogle = async () => {
     setLoading(true)
     const { error } = await supabase.auth.signInWithOAuth({
@@ -91,15 +88,13 @@ export default function StepSignIn({ onNext, onBack }: Props) {
     if (error) { console.error(error); setLoading(false) }
   }
 
-  // ── Privy — just open modal, useEffect handles the rest ───────────────────
   const handlePrivy = async () => {
     setError('')
     setPrivyLoading(true)
     try {
       setPrivyTriggered(true)
       await login()
-    } catch (err: any) {
-      // User closed modal
+    } catch {
       setPrivyTriggered(false)
       setPrivyLoading(false)
     }
@@ -111,22 +106,14 @@ export default function StepSignIn({ onNext, onBack }: Props) {
       <h1 className="text-white text-2xl font-bold mb-2">Welcome to Candoxa</h1>
       <p className="text-white/40 text-sm mb-10">Secure your digital identity permanently.</p>
 
-      {/* Google */}
-      <button
-        onClick={handleGoogle}
-        disabled={loading}
-        className="w-full bg-white text-black font-medium py-3 rounded-xl flex items-center justify-center gap-3 mb-3 hover:bg-white/90 transition-colors disabled:opacity-60"
-      >
+      <button onClick={handleGoogle} disabled={loading}
+        className="w-full bg-white text-black font-medium py-3 rounded-xl flex items-center justify-center gap-3 mb-3 hover:bg-white/90 transition-colors disabled:opacity-60">
         <Image src="/icons/google.png" alt="Google" width={20} height={20} className="object-contain" />
         {loading ? 'Redirecting...' : 'Sign in with Google'}
       </button>
 
-      {/* Privy */}
-      <button
-        onClick={handlePrivy}
-        disabled={privyLoading || !ready}
-        className="w-full bg-[#111118] border border-white/10 text-white font-medium py-3 rounded-xl flex items-center justify-center gap-3 hover:border-white/20 transition-colors disabled:opacity-60"
-      >
+      <button onClick={handlePrivy} disabled={privyLoading || !ready}
+        className="w-full bg-[#111118] border border-white/10 text-white font-medium py-3 rounded-xl flex items-center justify-center gap-3 hover:border-white/20 transition-colors disabled:opacity-60">
         {privyLoading
           ? <><div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Connecting...</>
           : 'Continue with Privy'

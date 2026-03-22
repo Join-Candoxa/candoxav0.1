@@ -17,9 +17,7 @@ function SignInContent() {
   const { login, getAccessToken, authenticated, ready, user: privyUser } = usePrivy()
 
   useEffect(() => {
-    if (!privyTriggered) return
-    if (!authenticated) return
-    if (!privyUser) return
+    if (!privyTriggered || !authenticated || !privyUser) return
 
     const exchangeToken = async () => {
       setPrivyLoading(true)
@@ -47,12 +45,13 @@ function SignInContent() {
           return
         }
 
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token:  data.access_token,
-          refresh_token: data.refresh_token,
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          email: data.email,
+          token: data.token,
+          type:  'magiclink',
         })
 
-        if (sessionError) {
+        if (verifyError) {
           setError('Failed to establish session. Please try again.')
           setPrivyLoading(false)
           setPrivyTriggered(false)
@@ -99,7 +98,6 @@ function SignInContent() {
       <div className="flex flex-col items-center mb-8">
         <Image src="/logo.png" alt="Candoxa" width={150} height={46} className="object-contain" priority />
       </div>
-
       <div className="w-full max-w-md bg-[#0D0D1A] border border-white/10 rounded-2xl p-8">
         <h1 className="text-white text-2xl font-bold mb-2">Welcome back</h1>
         <p className="text-white/40 text-sm mb-8">Sign in to your Candoxa account.</p>
