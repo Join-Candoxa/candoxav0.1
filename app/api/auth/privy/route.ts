@@ -22,64 +22,54 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No access token provided' }, { status: 400 })
     }
 
-    // 1. Verify Privy token — get claims
+    // 1. Verify Privy token
     let claims: any
     try {
       claims = await privy.verifyAuthToken(accessToken)
-      console.log('Privy claims:', JSON.stringify(claims))
+      console.log('Privy claims keys:', Object.keys(claims))
     } catch (err) {
       console.error('Privy token verification failed:', err)
       return NextResponse.json({ error: 'Invalid Privy token' }, { status: 401 })
     }
 
-    // 2. Try to get user — but fall back to claims if it fails
+    // 2. Try to get full user, fall back to claims
     let privyUser: any = null
-    const userId = claims.userId || claims.sub || claims.appId
-    console.log('Privy userId from claims:', userId)
+    const userId = claims.userId || claims.sub
 
     try {
-      // Try with userId as-is first
       privyUser = await privy.getUser(userId)
     } catch (err1) {
-      console.log('getUser failed with raw userId, trying with did:privy: prefix stripped')
       try {
-        // Try stripping the did:privy: prefix if present
         const strippedId = userId?.replace('did:privy:', '')
         privyUser = await privy.getUser(strippedId)
       } catch (err2) {
-        console.log('getUser also failed stripped — extracting from claims directly')
-        // Fall through — we'll extract from claims
+        console.log('Could not get Privy user, using claims only')
       }
     }
 
-    // 3. Extract identity from user OR fall back to claims
+    // 3. Extract identity
     let email: string | null = null
     let walletAddress: string | null = null
 
     if (privyUser) {
-      const linkedAccounts = privyUser?.linkedAccounts || []
-      console.log('Linked accounts:', JSON.stringify(linkedAccounts))
-
-      const emailAccount  = linkedAccounts.find((a: any) => a.type === 'email' || a.type === 'google_oauth')
-      const walletAccount = linkedAccounts.find((a: any) => a.type === 'wallet')
-
-      email         = emailAccount?.address || null
-      walletAddress = walletAccount?.address || null
+      const linked = privyUser?.linkedAccounts || []
+      const emailAcc  = linked.find((a: any) => a.type === 'email' || a.type === 'google_oauth')
+      const walletAcc = linked.find((a: any) => a.type === 'wallet')
+      email         = emailAcc?.address || null
+      walletAddress = walletAcc?.address || null
     }
 
-    // Fall back — try to get email from claims directly
     if (!email) {
       email = claims.email
-        || claims.user?.email
         || (claims.wallet ? `${claims.wallet.toLowerCase()}@candoxa.wallet` : null)
         || (userId ? `${userId.replace('did:privy:', '').toLowerCase()}@candoxa.wallet` : null)
       walletAddress = walletAddress || claims.wallet || null
     }
 
-    console.log('Resolved email:', email, 'wallet:', walletAddress)
+    console.log('Email:', email, 'Wallet:', walletAddress)
 
     if (!email) {
-      return NextResponse.json({ error: 'Could not extract identity from Privy token' }, { status: 400 })
+      return NextResponse.json({ error: 'Could not extract identity' }, { status: 400 })
     }
 
     // 4. Find or create Supabase user
@@ -96,50 +86,60 @@ export async function POST(req: NextRequest) {
         email_confirm: true,
         user_metadata: { wallet_address: walletAddress, privy_id: userId },
       })
-
       if (createError || !newUser?.user) {
-        console.error('Failed to create Supabase user:', createError)
+        console.error('Failed to create user:', createError)
         return NextResponse.json({ error: 'Failed to create user' }, { status: 500 })
       }
-
       supabaseUserId = newUser.user.id
-
       await supabaseAdmin.from('users').insert({
-        id:               supabaseUserId,
-        email,
-        wallet_address:   walletAddress,
-        profile_strength: 0,
-        plan:             'free',
-        created_at:       new Date().toISOString(),
+        id: supabaseUserId, email,
+        wallet_address: walletAddress,
+        profile_strength: 0, plan: 'free',
+        created_at: new Date().toISOString(),
       })
     }
 
     if (walletAddress) {
-      await supabaseAdmin.from('users')
-        .update({ wallet_address: walletAddress })
-        .eq('id', supabaseUserId)
+      await supabaseAdmin.from('users').update({ wallet_address: walletAddress }).eq('id', supabaseUserId)
     }
 
-    // 5. Generate Supabase session
+    // 5. Generate session — log full response to debug structure
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type:    'magiclink',
+      type: 'magiclink',
       email,
-      options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://candoxa.vercel.app'}/onboarding?step=3`,
-      },
+      options: { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://candoxa.vercel.app'}/onboarding?step=3` },
     })
 
-    if (linkError || !linkData) {
-      console.error('Failed to generate link:', linkError)
+    if (linkError) {
+      console.error('generateLink error:', linkError)
       return NextResponse.json({ error: 'Failed to generate session' }, { status: 500 })
     }
 
-    const properties         = (linkData as any).properties
-    const accessTokenResult  = properties?.access_token
-    const refreshTokenResult = properties?.refresh_token
+    console.log('linkData keys:', Object.keys(linkData || {}))
+    console.log('linkData:', JSON.stringify(linkData))
+
+    // Try multiple ways to extract tokens
+    const props = (linkData as any)?.properties
+    const accessTokenResult  = props?.access_token  || (linkData as any)?.access_token
+    const refreshTokenResult = props?.refresh_token || (linkData as any)?.refresh_token
+
+    console.log('access_token found:', !!accessTokenResult)
+    console.log('refresh_token found:', !!refreshTokenResult)
 
     if (!accessTokenResult || !refreshTokenResult) {
-      return NextResponse.json({ error: 'Failed to extract session tokens' }, { status: 500 })
+      // Last resort — create a session directly
+      console.log('Tokens not found in generateLink, trying createSession...')
+      const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.admin.createSession(supabaseUserId)
+      if (sessionError || !sessionData?.session) {
+        console.error('createSession error:', sessionError)
+        return NextResponse.json({ error: 'Failed to create session' }, { status: 500 })
+      }
+      return NextResponse.json({
+        access_token:   sessionData.session.access_token,
+        refresh_token:  sessionData.session.refresh_token,
+        email,
+        wallet_address: walletAddress,
+      })
     }
 
     return NextResponse.json({
