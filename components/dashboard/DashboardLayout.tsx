@@ -94,7 +94,7 @@ export default function DashboardLayout({ children, user }: { children: React.Re
         </div>
 
         {/* Page content */}
-        <div className="flex-1 md:ml-0 p-6 min-w-0">
+        <div className="flex-1 md:ml-0 p-6 min-w-0 pb-24 md:pb-6">
           {children}
         </div>
       </div>
