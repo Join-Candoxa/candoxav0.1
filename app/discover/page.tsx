@@ -14,10 +14,13 @@ function shortDate(d: string) {
 }
 
 function platformIcon(platform: string) {
-  const p = (platform || '').toLowerCase()
+  const p = (platform || '').toLowerCase().replace(/\s*\(.*?\)\s*/g, '').trim()
   const map: Record<string, string> = {
-    youtube: '/icons/youtube.png', instagram: '/icons/instagram.png',
-    twitter: '/icons/x.png', x: '/icons/x.png', linkedin: '/icons/linkedin.png',
+    youtube:   '/icons/youtube.png',
+    instagram: '/icons/instagram.png',
+    twitter:   '/icons/x.png',
+    x:         '/icons/x.png',
+    linkedin:  '/icons/linkedin.png',
   }
   return map[p] ?? '/icons/others.png'
 }
@@ -110,7 +113,7 @@ export default function DiscoverPage() {
     setStats({ entries: eCount || 0, creators: cCount || 0, today: tCount || 0 })
 
     // Who current user tracks
-    const { data: tRows } = await supabase.from('tracking').select('tracked_id').eq('tracker_id', prof.id)
+    const { data: tRows } = await supabase.from('trackers').select('tracked_id').eq('tracker_id', prof.id)
     const tmap: Record<string, boolean> = {}
     ;(tRows || []).forEach((r: any) => { tmap[r.tracked_id] = true })
     setTrackingMap(tmap)
@@ -129,7 +132,7 @@ export default function DiscoverPage() {
 
     const [{ data: bEntries }, { data: bTracks }] = await Promise.all([
       supabase.from('entries').select('user_id').in('user_id', bIds),
-      supabase.from('tracking').select('tracked_id').in('tracked_id', bIds),
+      supabase.from('trackers').select('tracked_id').in('tracked_id', bIds),
     ])
     const eCounts: Record<string,number> = {}; const tcCounts: Record<string,number> = {}
     ;(bEntries||[]).forEach((e:any) => { eCounts[e.user_id] = (eCounts[e.user_id]||0)+1 })
@@ -166,9 +169,9 @@ export default function DiscoverPage() {
     const was = trackingMap[targetId]
     setTrackingMap(prev => ({ ...prev, [targetId]: !was })) // optimistic
     if (was) {
-      await supabase.from('tracking').delete().eq('tracker_id', profile.id).eq('tracked_id', targetId)
+      await supabase.from('trackers').delete().eq('tracker_id', profile.id).eq('tracked_id', targetId)
     } else {
-      await supabase.from('tracking').insert({ tracker_id: profile.id, tracked_id: targetId })
+      await supabase.from('trackers').insert({ tracker_id: profile.id, tracked_id: targetId })
     }
   }
 

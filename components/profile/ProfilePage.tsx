@@ -45,7 +45,7 @@ export default function ProfilePage({ user }: { user: any }) {
         setEntries(e || [])
 
         const { count } = await supabase
-          .from('tracking').select('*', { count: 'exact', head: true }).eq('tracked_id', p.id)
+          .from('trackers').select('*', { count: 'exact', head: true }).eq('tracked_id', p.id)
         setTrackerCount(count || 0)
       }
     }

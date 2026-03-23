@@ -227,7 +227,7 @@ export default function GrowthPage() {
       { count: todayCount },
     ] = await Promise.all([
       supabase.from('entries').select('*', { count:'exact', head:true }).eq('user_id', prof.id),
-      supabase.from('tracking').select('*', { count:'exact', head:true }).eq('tracked_id', prof.id),
+      supabase.from('trackers').select('*', { count:'exact', head:true }).eq('tracked_id', prof.id),
       supabase.from('entries').select('*', { count:'exact', head:true }).eq('user_id', prof.id).gte('secured_at', todayMid.toISOString()),
     ])
 

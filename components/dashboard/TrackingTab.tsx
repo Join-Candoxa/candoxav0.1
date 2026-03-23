@@ -65,10 +65,13 @@ function Avatar({ src, name, size = 'md' }: { src: string | null; name: string; 
 }
 
 function platformIcon(platform: string) {
-  const p = (platform || '').toLowerCase()
+  const p = (platform || '').toLowerCase().replace(/\s*\(.*?\)\s*/g, '').trim()
   const map: Record<string, string> = {
-    youtube: '/icons/youtube.png', instagram: '/icons/instagram.png',
-    twitter: '/icons/x.png', x: '/icons/x.png', linkedin: '/icons/linkedin.png',
+    youtube:   '/icons/youtube.png',
+    instagram: '/icons/instagram.png',
+    twitter:   '/icons/x.png',
+    x:         '/icons/x.png',
+    linkedin:  '/icons/linkedin.png',
   }
   return map[p] ?? '/icons/others.png'
 }
@@ -91,7 +94,7 @@ export default function TrackingTab({ profile }: { profile: any }) {
 
     // Get who this user is tracking
     const { data: trackingRows } = await supabase
-      .from('tracking')
+      .from('trackers')
       .select('tracked_id')
       .eq('tracker_id', profile.id)
 
@@ -169,7 +172,7 @@ export default function TrackingTab({ profile }: { profile: any }) {
   }
 
   const handleUntrack = async (trackedId: string) => {
-    await supabase.from('tracking').delete()
+    await supabase.from('trackers').delete()
       .eq('tracker_id', profile.id).eq('tracked_id', trackedId)
     fetchAll()
   }

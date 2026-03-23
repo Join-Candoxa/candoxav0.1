@@ -15,10 +15,13 @@ function shortDate(d: string) {
 }
 
 function platformIcon(platform: string) {
-  const p = (platform || '').toLowerCase()
+  const p = (platform || '').toLowerCase().replace(/\s*\(.*?\)\s*/g, '').trim()
   const map: Record<string, string> = {
-    youtube: '/icons/youtube.png', instagram: '/icons/instagram.png',
-    twitter: '/icons/x.png', x: '/icons/x.png', linkedin: '/icons/linkedin.png',
+    youtube:   '/icons/youtube.png',
+    instagram: '/icons/instagram.png',
+    twitter:   '/icons/x.png',
+    x:         '/icons/x.png',
+    linkedin:  '/icons/linkedin.png',
   }
   return map[p] ?? '/icons/others.png'
 }
@@ -100,12 +103,12 @@ export default function PublicProfilePage() {
     setEntries(ents || [])
 
     // Trackers
-    const { data: trackerRows } = await supabase.from('tracking')
+    const { data: trackerRows } = await supabase.from('trackers')
       .select('tracker_id, users!tracking_tracker_id_fkey(username, avatar_url, profile_strength)')
       .eq('tracked_id', prof.id).limit(4)
     setTrackers((trackerRows || []).map((r: any) => ({ ...r.users, id: r.tracker_id })))
 
-    const { count } = await supabase.from('tracking').select('*', { count: 'exact', head: true }).eq('tracked_id', prof.id)
+    const { count } = await supabase.from('trackers').select('*', { count: 'exact', head: true }).eq('tracked_id', prof.id)
     setTrackerCount(count || 0)
 
     // Platform breakdown
@@ -136,7 +139,7 @@ export default function PublicProfilePage() {
 
   useEffect(() => {
     if (!currentProfile?.id || !profile?.id) return
-    supabase.from('tracking').select('id', { count: 'exact', head: true })
+    supabase.from('trackers').select('id', { count: 'exact', head: true })
       .eq('tracker_id', currentProfile.id).eq('tracked_id', profile.id)
       .then(({ count }) => setIsTracking((count || 0) > 0))
   }, [currentProfile, profile])
@@ -144,9 +147,9 @@ export default function PublicProfilePage() {
   const toggleTrack = async () => {
     if (!currentProfile?.id || !profile?.id) return
     if (isTracking) {
-      await supabase.from('tracking').delete().eq('tracker_id', currentProfile.id).eq('tracked_id', profile.id)
+      await supabase.from('trackers').delete().eq('tracker_id', currentProfile.id).eq('tracked_id', profile.id)
     } else {
-      await supabase.from('tracking').insert({ tracker_id: currentProfile.id, tracked_id: profile.id })
+      await supabase.from('trackers').insert({ tracker_id: currentProfile.id, tracked_id: profile.id })
     }
     setIsTracking(!isTracking)
     setTrackerCount(prev => isTracking ? prev - 1 : prev + 1)
