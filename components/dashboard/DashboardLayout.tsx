@@ -10,31 +10,27 @@ import NotificationsDropdown from './NotificationsDropdown'
 
 export default function DashboardLayout({ children, user }: { children: React.ReactNode; user: any }) {
   const router = useRouter()
-  const [sidebarOpen,    setSidebarOpen]    = useState(false)
-  const [showNotifs,     setShowNotifs]     = useState(false)
-  const [profile,        setProfile]        = useState<any>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showNotifs,  setShowNotifs]  = useState(false)
+  const [profile,     setProfile]     = useState<any>(null)
 
   useEffect(() => {
     supabase.from('users').select('id, username, avatar_url').eq('email', user.email).single()
       .then(({ data }) => setProfile(data))
   }, [user])
 
-  const initials  = (profile?.username || user?.email || 'U')[0].toUpperCase()
-  const palette   = ['bg-blue-700','bg-purple-700','bg-green-700','bg-rose-700','bg-amber-700']
-  const avatarBg  = palette[initials.charCodeAt(0) % palette.length]
+  const initials = (profile?.username || user?.email || 'U')[0].toUpperCase()
+  const palette  = ['bg-blue-700','bg-purple-700','bg-green-700','bg-rose-700','bg-amber-700']
+  const avatarBg = palette[initials.charCodeAt(0) % palette.length]
 
   return (
     <div className="min-h-screen bg-[#060608] flex flex-col">
 
-      {/* ── Full-width topbar — sits above everything including sidebar ── */}
-      <div className="h-[64px] bg-[#0A0A0F] border-b border-white/[0.06] flex items-center px-5 gap-5 sticky top-0 z-50 w-full">
+      {/* ── Topbar — desktop only ── */}
+      <div className="hidden md:flex h-[64px] bg-[#0A0A0F] border-b border-white/[0.06] items-center px-5 gap-5 sticky top-0 z-50 w-full">
 
         {/* Logo area — same width as sidebar */}
         <div className="w-[220px] flex items-center gap-2.5 flex-shrink-0">
-          {/* Mobile hamburger */}
-          <button onClick={() => setSidebarOpen(true)} className="md:hidden text-white/60 hover:text-white mr-1">
-            <div className="w-4 h-0.5 bg-current mb-1" /><div className="w-4 h-0.5 bg-current mb-1" /><div className="w-4 h-0.5 bg-current" />
-          </button>
           <Image src="/logo.png" alt="Candoxa" width={110} height={32} className="object-contain flex-shrink-0" priority />
         </div>
 
@@ -86,15 +82,15 @@ export default function DashboardLayout({ children, user }: { children: React.Re
           <div className="fixed inset-0 bg-black/60 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
         )}
 
-        {/* Sidebar */}
+        {/* Sidebar (desktop only — mobile uses bottom nav in Sidebar.tsx) */}
         <div className={`fixed left-0 top-[64px] h-[calc(100vh-64px)] z-50 transition-transform duration-300 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } md:translate-x-0 md:static md:h-auto`}>
           <Sidebar user={user} onClose={() => setSidebarOpen(false)} />
         </div>
 
-        {/* Page content */}
-        <div className="flex-1 md:ml-0 p-6 min-w-0 pb-24 md:pb-6">
+        {/* Page content — extra bottom padding on mobile for the bottom nav */}
+        <div className="flex-1 md:ml-0 p-4 md:p-6 min-w-0 pb-28 md:pb-6">
           {children}
         </div>
       </div>
