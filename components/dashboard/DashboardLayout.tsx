@@ -2,14 +2,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import Sidebar from './Sidebar'
 import { supabase } from '@/lib/supabase'
 import Image from 'next/image'
 import NotificationsDropdown from './NotificationsDropdown'
 
 export default function DashboardLayout({ children, user }: { children: React.ReactNode; user: any }) {
-  const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showNotifs,  setShowNotifs]  = useState(false)
   const [profile,     setProfile]     = useState<any>(null)
@@ -24,17 +22,17 @@ export default function DashboardLayout({ children, user }: { children: React.Re
   const avatarBg = palette[initials.charCodeAt(0) % palette.length]
 
   return (
-    <div className="min-h-screen bg-[#060608] flex flex-col">
+    /* h-screen + overflow-hidden = the shell never scrolls, only the content area does */
+    /* This keeps the mobile bottom nav permanently pinned */
+    <div className="h-screen overflow-hidden bg-[#060608] flex flex-col">
 
       {/* ── Topbar — desktop only ── */}
-      <div className="hidden md:flex h-[64px] bg-[#0A0A0F] border-b border-white/[0.06] items-center px-5 gap-5 sticky top-0 z-50 w-full">
+      <div className="hidden md:flex h-[64px] bg-[#0A0A0F] border-b border-white/[0.06] items-center px-5 gap-5 flex-shrink-0 w-full z-50">
 
-        {/* Logo area — same width as sidebar */}
         <div className="w-[220px] flex items-center gap-2.5 flex-shrink-0">
           <Image src="/logo.png" alt="Candoxa" width={110} height={32} className="object-contain flex-shrink-0" priority />
         </div>
 
-        {/* Search — 316×40, centered */}
         <div className="flex-1 flex justify-center">
           <div
             className="flex items-center gap-[20px] bg-white/[0.05] border border-white/[0.08] rounded-full px-4"
@@ -51,7 +49,6 @@ export default function DashboardLayout({ children, user }: { children: React.Re
           </div>
         </div>
 
-        {/* Right — notifs + avatar */}
         <div className="flex items-center gap-3 flex-shrink-0">
           <div className="relative">
             <button
@@ -64,7 +61,6 @@ export default function DashboardLayout({ children, user }: { children: React.Re
               <NotificationsDropdown userId={profile.id} onClose={() => setShowNotifs(false)} />
             )}
           </div>
-
           {profile?.avatar_url
             ? <img src={profile.avatar_url} alt="avatar" className="w-9 h-9 rounded-full object-cover" />
             : <div className={`w-9 h-9 rounded-full flex items-center justify-center ${avatarBg}`}>
@@ -74,25 +70,28 @@ export default function DashboardLayout({ children, user }: { children: React.Re
         </div>
       </div>
 
-      {/* ── Body — sidebar + content ── */}
-      <div className="flex flex-1">
+      {/* ── Body ── */}
+      <div className="flex flex-1 overflow-hidden">
 
         {/* Mobile overlay */}
         {sidebarOpen && (
           <div className="fixed inset-0 bg-black/60 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
         )}
 
-        {/* Sidebar (desktop only — mobile uses bottom nav in Sidebar.tsx) */}
-        <div className={`fixed left-0 top-[64px] h-[calc(100vh-64px)] z-50 transition-transform duration-300 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } md:translate-x-0 md:static md:h-auto`}>
+        {/* Desktop sidebar */}
+        <div className="hidden md:flex">
           <Sidebar user={user} onClose={() => setSidebarOpen(false)} />
         </div>
 
-        {/* Page content — extra bottom padding on mobile for the bottom nav */}
-        <div className="flex-1 md:ml-0 p-4 md:p-6 min-w-0 pb-28 md:pb-6">
+        {/* Scrollable content area only — bottom padding clears the mobile nav */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6">
           {children}
         </div>
+      </div>
+
+      {/* Mobile bottom nav lives inside Sidebar.tsx as fixed bottom-0 */}
+      <div className="md:hidden">
+        <Sidebar user={user} onClose={() => setSidebarOpen(false)} />
       </div>
     </div>
   )

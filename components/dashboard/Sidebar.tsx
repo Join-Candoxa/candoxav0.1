@@ -14,7 +14,6 @@ const navItems = [
   { label: 'Settings',   icon: '/icons/setting.png',  path: '/settings'  },
 ]
 
-// Bottom nav items — only 5 shown (no Settings on mobile)
 const mobileNavItems = [
   { label: 'Home',     icon: '/icons/home.png',     path: '/dashboard' },
   { label: 'Discover', icon: '/icons/discover.png', path: '/discover'  },
@@ -86,52 +85,48 @@ export default function Sidebar({ user, onClose }: { user: any; onClose?: () => 
         </div>
       </div>
 
-      {/* ── Mobile bottom nav ── */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0F] border-t border-white/[0.06] flex items-center justify-around px-2 py-2 safe-area-pb">
+      {/* ── Mobile bottom nav — always fixed to bottom ── */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0F] border-t border-white/[0.06] flex items-center justify-around px-2 pb-safe"
+        style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}
+      >
         {/* Home */}
-        <button
-          onClick={() => navigate(mobileNavItems[0].path)}
-          className="flex flex-col items-center gap-1 px-3 py-1.5 flex-1"
-        >
-          <Image
-            src={mobileNavItems[0].icon}
-            alt={mobileNavItems[0].label}
-            width={20}
-            height={20}
-            className={`transition-all ${pathname === mobileNavItems[0].path ? 'brightness-0 invert' : 'brightness-0 invert opacity-45'}`}
-          />
-          <span className={`text-[10px] font-medium transition-colors ${pathname === mobileNavItems[0].path ? 'text-white' : 'text-white/40'}`}>
-            {mobileNavItems[0].label}
-          </span>
-        </button>
+        {mobileNavItems.slice(0, 2).map((item) => {
+          const active = pathname === item.path
+          return (
+            <button
+              key={item.path}
+              onClick={() => navigate(item.path)}
+              className="flex flex-col items-center gap-1 px-3 py-2 flex-1"
+            >
+              <Image
+                src={item.icon}
+                alt={item.label}
+                width={22}
+                height={22}
+                style={active
+                  ? { filter: 'drop-shadow(0 0 6px #0038FF) invert(27%) sepia(99%) saturate(7496%) hue-rotate(220deg) brightness(110%)' }
+                  : { filter: 'brightness(0) invert(1)', opacity: 0.4 }}
+              />
+              <span
+                className="text-[10px] font-medium transition-colors"
+                style={{ color: active ? '#0038FF' : 'rgba(255,255,255,0.4)' }}
+              >
+                {item.label}
+              </span>
+            </button>
+          )
+        })}
 
-        {/* Discover */}
-        <button
-          onClick={() => navigate(mobileNavItems[1].path)}
-          className="flex flex-col items-center gap-1 px-3 py-1.5 flex-1"
-        >
-          <Image
-            src={mobileNavItems[1].icon}
-            alt={mobileNavItems[1].label}
-            width={20}
-            height={20}
-            className={`transition-all ${pathname === mobileNavItems[1].path ? 'brightness-0 invert' : 'brightness-0 invert opacity-45'}`}
-          />
-          <span className={`text-[10px] font-medium transition-colors ${pathname === mobileNavItems[1].path ? 'text-white' : 'text-white/40'}`}>
-            {mobileNavItems[1].label}
-          </span>
-        </button>
-
-        {/* Big plus — Secured */}
+        {/* Center — big + button */}
         <button
           onClick={() => navigate('/secured')}
-          className="flex flex-col items-center justify-center -mt-6 flex-shrink-0"
+          className="flex flex-col items-center justify-center flex-shrink-0 -mt-5 px-2"
         >
           <div
-            className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg"
+            className="w-14 h-14 rounded-full flex items-center justify-center"
             style={{
               background: 'linear-gradient(287.32deg, #0038FF 0.21%, #002093 37.04%, #010103 86.23%)',
-              boxShadow: '0 0 20px rgba(0, 56, 255, 0.4)',
+              boxShadow: '0 0 24px rgba(0, 56, 255, 0.5)',
             }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" className="w-7 h-7">
@@ -140,39 +135,33 @@ export default function Sidebar({ user, onClose }: { user: any; onClose?: () => 
           </div>
         </button>
 
-        {/* Growth */}
-        <button
-          onClick={() => navigate(mobileNavItems[2].path)}
-          className="flex flex-col items-center gap-1 px-3 py-1.5 flex-1"
-        >
-          <Image
-            src={mobileNavItems[2].icon}
-            alt={mobileNavItems[2].label}
-            width={20}
-            height={20}
-            className={`transition-all ${pathname === mobileNavItems[2].path ? 'brightness-0 invert' : 'brightness-0 invert opacity-45'}`}
-          />
-          <span className={`text-[10px] font-medium transition-colors ${pathname === mobileNavItems[2].path ? 'text-white' : 'text-white/40'}`}>
-            {mobileNavItems[2].label}
-          </span>
-        </button>
-
-        {/* Profile */}
-        <button
-          onClick={() => navigate(mobileNavItems[3].path)}
-          className="flex flex-col items-center gap-1 px-3 py-1.5 flex-1"
-        >
-          <Image
-            src={mobileNavItems[3].icon}
-            alt={mobileNavItems[3].label}
-            width={20}
-            height={20}
-            className={`transition-all ${pathname === mobileNavItems[3].path ? 'brightness-0 invert' : 'brightness-0 invert opacity-45'}`}
-          />
-          <span className={`text-[10px] font-medium transition-colors ${pathname === mobileNavItems[3].path ? 'text-white' : 'text-white/40'}`}>
-            {mobileNavItems[3].label}
-          </span>
-        </button>
+        {/* Growth + Profile */}
+        {mobileNavItems.slice(2).map((item) => {
+          const active = pathname === item.path
+          return (
+            <button
+              key={item.path}
+              onClick={() => navigate(item.path)}
+              className="flex flex-col items-center gap-1 px-3 py-2 flex-1"
+            >
+              <Image
+                src={item.icon}
+                alt={item.label}
+                width={22}
+                height={22}
+                style={active ? {
+                  filter: 'drop-shadow(0 0 6px #0038FF) invert(27%) sepia(99%) saturate(7496%) hue-rotate(220deg) brightness(110%)',
+                } : { filter: 'brightness(0) invert(1)', opacity: 0.4 }}
+              />
+              <span
+                className="text-[10px] font-medium transition-colors"
+                style={{ color: active ? '#0038FF' : 'rgba(255,255,255,0.4)' }}
+              >
+                {item.label}
+              </span>
+            </button>
+          )
+        })}
       </div>
     </>
   )
