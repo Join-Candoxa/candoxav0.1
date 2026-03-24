@@ -1,11 +1,11 @@
-// components/onboarding/StepSignIn.tsx — Step 2
+// components/onboarding/StepSignIn.tsx — Step 1 of 4
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
-import { usePrivy } from '@privy-io/react-auth'
-import Image from 'next/image'
+import { useRouter }            from 'next/navigation'
+import { supabase }             from '@/lib/supabase'
+import { usePrivy }             from '@privy-io/react-auth'
+import Image                    from 'next/image'
 
 type Props = { onNext: () => void; onBack: () => void }
 
@@ -18,10 +18,8 @@ export default function StepSignIn({ onNext, onBack }: Props) {
   const { login, getAccessToken, authenticated, ready, user: privyUser } = usePrivy()
   const router = useRouter()
 
-  // Watch for Privy auth completing then exchange token
   useEffect(() => {
     if (!privyTriggered || !authenticated || !privyUser) return
-
     const exchangeToken = async () => {
       setPrivyLoading(true)
       setError('')
@@ -29,52 +27,27 @@ export default function StepSignIn({ onNext, onBack }: Props) {
         const privyToken = await getAccessToken()
         if (!privyToken) {
           setError('Could not get token. Please try again.')
-          setPrivyLoading(false)
-          setPrivyTriggered(false)
-          return
+          setPrivyLoading(false); setPrivyTriggered(false); return
         }
-
-        // Call API route — returns { email, token }
-        const res = await fetch('/api/auth/privy', {
+        const res  = await fetch('/api/auth/privy', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({ accessToken: privyToken }),
         })
-
-        const data = await res.json()
-
-        if (!res.ok || data.error) {
-          setError(data.error || 'Authentication failed. Please try again.')
-          setPrivyLoading(false)
-          setPrivyTriggered(false)
-          return
+        const d = await res.json()
+        if (!res.ok || d.error) {
+          setError(d.error || 'Authentication failed.'); setPrivyLoading(false); setPrivyTriggered(false); return
         }
-
-        // Use token_hash to create a real Supabase session
-        const { error: verifyError } = await supabase.auth.verifyOtp({
-          token_hash: data.token,
-          type:       'magiclink',
-        })
-
+        const { error: verifyError } = await supabase.auth.verifyOtp({ token_hash: d.token, type: 'magiclink' })
         if (verifyError) {
-          console.error('verifyOtp error:', verifyError)
-          setError('Failed to establish session. Please try again.')
-          setPrivyLoading(false)
-          setPrivyTriggered(false)
-          return
+          setError('Failed to establish session.'); setPrivyLoading(false); setPrivyTriggered(false); return
         }
-
         setPrivyTriggered(false)
         onNext()
-
-      } catch (err: any) {
-        console.error('Token exchange error:', err)
-        setError('Something went wrong. Please try again.')
-        setPrivyLoading(false)
-        setPrivyTriggered(false)
+      } catch {
+        setError('Something went wrong.'); setPrivyLoading(false); setPrivyTriggered(false)
       }
     }
-
     exchangeToken()
   }, [authenticated, privyUser, privyTriggered])
 
@@ -82,54 +55,76 @@ export default function StepSignIn({ onNext, onBack }: Props) {
     setLoading(true)
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/onboarding?step=3` },
+      options:  { redirectTo: `${window.location.origin}/onboarding?step=3` },
     })
     if (error) { console.error(error); setLoading(false) }
   }
 
   const handlePrivy = async () => {
-    setError('')
-    setPrivyLoading(true)
-    try {
-      setPrivyTriggered(true)
-      await login()
-    } catch {
-      setPrivyTriggered(false)
-      setPrivyLoading(false)
-    }
+    setError(''); setPrivyLoading(true)
+    try { setPrivyTriggered(true); await login() }
+    catch { setPrivyTriggered(false); setPrivyLoading(false) }
   }
 
   return (
-    <div className="w-full max-w-md bg-[#0D0D1A] border border-white/10 rounded-2xl p-8">
-      <p className="text-blue-400 text-xs font-medium mb-1">Step 2 of 4</p>
-      <h1 className="text-white text-2xl font-bold mb-2">Welcome to Candoxa</h1>
-      <p className="text-white/40 text-sm mb-10">Secure your digital identity permanently.</p>
-
-      <button onClick={handleGoogle} disabled={loading}
-        className="w-full bg-white text-black font-medium py-3 rounded-xl flex items-center justify-center gap-3 mb-3 hover:bg-white/90 transition-colors disabled:opacity-60">
-        <Image src="/icons/google.png" alt="Google" width={20} height={20} className="object-contain" />
-        {loading ? 'Redirecting...' : 'Sign in with Google'}
-      </button>
-
-      <button onClick={handlePrivy} disabled={privyLoading || !ready}
-        className="w-full bg-[#111118] border border-white/10 text-white font-medium py-3 rounded-xl flex items-center justify-center gap-3 hover:border-white/20 transition-colors disabled:opacity-60">
-        {privyLoading
-          ? <><div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Connecting...</>
-          : 'Continue with Privy'
-        }
-      </button>
-
-      {error && (
-        <div className="mt-3 px-4 py-3 rounded-xl text-xs bg-red-500/10 border border-red-500/20 text-red-300 leading-relaxed">
-          {error}
+    <div className="w-full max-w-sm flex flex-col min-h-[80vh]">
+      {/* Logo */}
+      <div className="flex items-center gap-2 mb-8">
+        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+          <div className="w-4 h-4 rounded-full bg-black" />
         </div>
-      )}
+        <span className="text-white font-bold text-[17px]">Candoxa</span>
+      </div>
 
-      <p className="text-white/30 text-xs text-center mt-6">
-        Already have an account?{' '}
-        <span onClick={() => router.push('/signin')} className="text-blue-400 cursor-pointer hover:underline">Sign In</span>
+      {/* Step label */}
+      <p className="text-[#6B8AFF] text-[14px] font-medium mb-2">Step 1 of 4</p>
+
+      {/* Heading */}
+      <h1 className="text-white text-[30px] font-bold leading-tight mb-2">
+        Welcome to Candoxa
+      </h1>
+      <p className="text-white/40 text-[14px] mb-12">
+        Own your digital identity permanently.
       </p>
-      <p className="text-white/20 text-xs text-center mt-8">Your permanent identity will be created automatically.</p>
+
+      {/* Spacer pushes buttons down */}
+      <div className="flex-1" />
+
+      {/* Buttons */}
+      <div className="flex flex-col gap-3">
+        <button
+          onClick={handleGoogle}
+          disabled={loading}
+          className="w-full bg-white text-black font-semibold py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-white/90 transition-colors disabled:opacity-60 text-[15px]"
+        >
+          <Image src="/icons/google.png" alt="Google" width={20} height={20} className="object-contain" />
+          {loading ? 'Redirecting...' : 'Sign in with Google'}
+        </button>
+
+        <button
+          onClick={handlePrivy}
+          disabled={privyLoading || !ready}
+          className="w-full bg-[#0A0A0F] border border-white/[0.15] text-white font-semibold py-4 rounded-2xl flex items-center justify-center gap-3 hover:border-white/25 transition-colors disabled:opacity-60 text-[15px]"
+        >
+          {privyLoading
+            ? <><div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Connecting...</>
+            : 'Continue with Privy'
+          }
+        </button>
+
+        {error && (
+          <p className="text-red-400 text-[12px] text-center">{error}</p>
+        )}
+
+        <p className="text-white/35 text-[13px] text-center mt-1">
+          Already have an account?{' '}
+          <span onClick={() => router.push('/signin')} className="text-[#6B8AFF] cursor-pointer">Sign In</span>
+        </p>
+      </div>
+
+      <p className="text-white/25 text-[12px] text-center mt-8">
+        Your permanent identity starts here.
+      </p>
     </div>
   )
 }

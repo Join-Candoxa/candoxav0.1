@@ -1,79 +1,108 @@
-// components/onboarding/StepInviteCode.tsx — Step 1: validate invite code
+// components/onboarding/StepInviteCode.tsx
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase }  from '@/lib/supabase'
 import { OnboardingData } from '@/app/onboarding/page'
 
 type Props = {
-  data: OnboardingData
+  data:    OnboardingData
   setData: (d: OnboardingData) => void
-  onNext: () => void
+  onNext:  () => void
 }
 
 export default function StepInviteCode({ data, setData, onNext }: Props) {
-  const [code, setCode] = useState('')
-  const [error, setError] = useState('')
+  const [code,     setCode]     = useState(data.inviteCode || '')
+  const [error,    setError]    = useState('')
+  const [valid,    setValid]    = useState(false)
   const [checking, setChecking] = useState(false)
-  const [valid, setValid] = useState(false)
 
- // Updated handleChange — clears error properly when code is valid
-const handleChange = async (val: string) => {
-  setCode(val)
-  setError('')
-  setValid(false)
-  if (val.length < 4) return
-
-  setChecking(true)
-  const { data: result } = await supabase
-    .from('invite_codes')
-    .select('*')
-    .eq('code', val.toUpperCase())
-    .eq('status', 'available')
-    .single()
-
-  setChecking(false)
-  if (result) {
-    setValid(true)
-    setError('') // explicitly clear error
-    setData({ ...data, inviteCode: val.toUpperCase() })
-  } else {
+  const handleChange = async (val: string) => {
+    setCode(val)
+    setError('')
     setValid(false)
-    setError('Invalid invite code. Please check and try again.')
+    if (val.length < 4) return
+
+    setChecking(true)
+    const { data: result } = await supabase
+      .from('invite_codes')
+      .select('*')
+      .eq('code', val.toUpperCase())
+      .eq('status', 'available')
+      .single()
+    setChecking(false)
+
+    if (result) {
+      setValid(true)
+      setData({ ...data, inviteCode: val.toUpperCase() })
+    } else {
+      setValid(false)
+      setError('Invalid invite code. Please check and try again.')
+    }
   }
-}
 
   return (
-    <div className="w-full max-w-md bg-[#0D0D1A] border border-white/10 rounded-2xl p-8">
-      <h1 className="text-white text-2xl font-bold text-center mb-2">Access Candoxa Testnet</h1>
-      <p className="text-white/40 text-sm text-center mb-8">
-        Candoxa is currently invite-only. Enter a valid access code to continue.
+    <div className="w-full max-w-sm flex flex-col">
+      {/* Private Testnet badge */}
+      <div className="mb-6">
+        <span className="px-4 py-2 rounded-full border border-white/[0.20] text-white/70 text-[13px] font-medium">
+          Private Testnet
+        </span>
+      </div>
+
+      {/* Heading */}
+      <h1 className="text-white text-[32px] font-bold leading-tight mb-2">
+        Access Candoxa
+      </h1>
+      <p className="text-white/45 text-[14px] mb-8">
+        Candoxa is currently invite-only during testnet.
       </p>
 
-      <label className="text-white/70 text-sm mb-2 block">Invite Code</label>
-      <div className="relative mb-2">
+      {/* Input */}
+      <label className="text-white/70 text-[14px] font-medium mb-2">
+        {error ? 'Invite Code' : 'Access Code'}
+      </label>
+      <div className="relative mb-1">
         <input
           type="text"
           value={code}
           onChange={(e) => handleChange(e.target.value)}
-          placeholder="e.g. DOXA-1"
-          className={`w-full bg-black/40 border rounded-xl px-4 py-3 text-white placeholder-white/20 outline-none transition-colors ${
-            error ? 'border-red-500' : valid ? 'border-green-500' : 'border-white/10 focus:border-blue-500'
-          }`}
+          placeholder="Enter your code"
+          className="w-full bg-[#0A0A0F] border rounded-xl px-4 py-4 text-white text-[15px] outline-none transition-all pr-11 placeholder-white/25"
+          style={{
+            borderColor: error ? '#ef4444' : valid ? '#22c55e' : 'rgba(255,255,255,0.12)',
+          }}
         />
         {valid && (
-          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-green-400">✓</span>
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-green-400 text-[18px]">✓</span>
+        )}
+        {checking && (
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
         )}
       </div>
-      {error && <p className="text-red-400 text-xs mb-4">{error}</p>}
+      {error && (
+        <p className="text-red-400 text-[12px] mb-2">{error}</p>
+      )}
 
+      {/* Button */}
       <button
         onClick={onNext}
         disabled={!valid}
-        className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-white font-medium py-3 rounded-xl mt-4"
+        className="w-full py-4 rounded-xl text-white text-[15px] font-semibold mt-5 transition-all disabled:opacity-40"
+        style={{ background: '#0038FF' }}
       >
-        Continue
+        Verify & Continue →
       </button>
+
+      {/* Perks */}
+      <div className="mt-8 flex flex-col gap-2.5">
+        {['5 secured entries per day', '3 invite codes', 'Early builder rewards'].map((perk) => (
+          <div key={perk} className="flex items-center gap-2">
+            <span className="text-white/40 text-[13px]">•</span>
+            <span className="text-white/55 text-[13px]">{perk}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
