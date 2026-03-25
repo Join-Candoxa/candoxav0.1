@@ -17,8 +17,15 @@ function shortDate(d: string) {
 function platformIcon(platform: string) {
   const p = (platform || '').toLowerCase().replace(/\s*\(.*?\)\s*/g, '').trim()
   const map: Record<string, string> = {
-    youtube: '/icons/youtube.png', instagram: '/icons/instagram.png',
-    twitter: '/icons/x.png', x: '/icons/x.png', linkedin: '/icons/linkedin.png',
+    youtube:   '/icons/youtube.png',
+    instagram: '/icons/instagram.png',
+    twitter:   '/icons/x.png',
+    x:         '/icons/x.png',
+    linkedin:  '/icons/linkedin.png',
+    github:    '/icons/others.png',
+    tiktok:    '/icons/others.png',
+    medium:    '/icons/others.png',
+    substack:  '/icons/others.png',
   }
   return map[p] ?? '/icons/others.png'
 }
@@ -32,9 +39,14 @@ function Avatar({ src, name, size = 'md' }: { src: string | null; name: string; 
   return <div className={`${sz} rounded-full flex items-center justify-center flex-shrink-0 ${color}`}><span className="text-white font-bold">{i}</span></div>
 }
 
-function TrackButton({ userId, trackingMap, onToggle, variant = 'pill' }: {
-  userId: string; trackingMap: Record<string, boolean>; onToggle: (id: string) => void; variant?: 'pill'|'full'|'blue'
+// ── TrackButton — "Track" when not tracking, "Tracking" when tracking ──────────
+function TrackButton({ userId, myId, trackingMap, onToggle, variant = 'pill' }: {
+  userId: string; myId: string; trackingMap: Record<string, boolean>
+  onToggle: (id: string) => void; variant?: 'pill'|'blue'
 }) {
+  // Never show track button on own profile
+  if (userId === myId) return null
+
   const isTracking = !!trackingMap[userId]
 
   if (variant === 'blue') return (
@@ -43,28 +55,17 @@ function TrackButton({ userId, trackingMap, onToggle, variant = 'pill' }: {
       style={isTracking
         ? { background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.15)', color:'rgba(255,255,255,0.65)' }
         : { background:'#0038FF', border:'1px solid #0038FF', color:'#fff' }}>
-      {isTracking ? <><span className="text-green-400 text-[11px]">✓</span> Tracking</> : 'Tracking'}
+      {isTracking ? <><span className="text-green-400 text-[11px]">✓</span> Tracking</> : 'Track'}
     </button>
   )
 
-  if (variant === 'full') return (
-    <button onClick={(e) => { e.stopPropagation(); onToggle(userId) }}
-      className="w-full py-3 rounded-full text-[14px] font-semibold border transition-all flex items-center justify-center gap-2"
-      style={isTracking
-        ? { background:'rgba(255,255,255,0.06)', borderColor:'rgba(255,255,255,0.18)', color:'rgba(255,255,255,0.65)' }
-        : { background:'transparent', borderColor:'rgba(255,255,255,0.15)', color:'rgba(255,255,255,0.65)' }}>
-      {isTracking ? <><span className="text-green-400">✓</span> Tracking</> : 'Track'}
-    </button>
-  )
-
-  // pill — outlined, for entry rows
   return (
     <button onClick={(e) => { e.stopPropagation(); onToggle(userId) }}
       className="px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-all flex items-center gap-1 flex-shrink-0"
       style={isTracking
         ? { background:'rgba(0,56,255,0.10)', borderColor:'rgba(0,56,255,0.30)', color:'#6B8AFF' }
         : { background:'transparent', borderColor:'rgba(255,255,255,0.15)', color:'rgba(255,255,255,0.55)' }}>
-      {isTracking ? <><span className="text-green-400 text-[10px]">✓</span> Tracking</> : 'Tracking'}
+      {isTracking ? <><span className="text-green-400 text-[10px]">✓</span> Tracking</> : 'Track'}
     </button>
   )
 }
@@ -98,16 +99,18 @@ export default function DiscoverPage() {
 
     const [{ count: eCount }, { count: cCount }, { count: tCount }] = await Promise.all([
       supabase.from('entries').select('*', { count:'exact', head:true }),
-      supabase.from('users').select('*', { count:'exact', head:true }),
+      supabase.from('users').select('*',   { count:'exact', head:true }),
       supabase.from('entries').select('*', { count:'exact', head:true }).gte('secured_at', todayMid.toISOString()),
     ])
     setStats({ entries: eCount||0, creators: cCount||0, today: tCount||0 })
 
+    // Who current user is tracking
     const { data: tRows } = await supabase.from('trackers').select('tracked_id').eq('tracker_id', prof.id)
     const tmap: Record<string, boolean> = {}
     ;(tRows||[]).forEach((r: any) => { tmap[r.tracked_id] = true })
     setTrackingMap(tmap)
 
+    // Builders — exclude self
     const { data: bData } = await supabase.from('users')
       .select('id, username, avatar_url, bio, profile_strength')
       .neq('id', prof.id).order('profile_strength', { ascending: false }).limit(8)
@@ -117,29 +120,36 @@ export default function DiscoverPage() {
       supabase.from('trackers').select('tracked_id').in('tracked_id', bIds),
     ])
     const eCounts: Record<string,number> = {}; const tcCounts: Record<string,number> = {}
-    ;(bEntries||[]).forEach((e:any) => { eCounts[e.user_id] = (eCounts[e.user_id]||0)+1 })
-    ;(bTracks||[]).forEach((t:any) => { tcCounts[t.tracked_id] = (tcCounts[t.tracked_id]||0)+1 })
+    ;(bEntries||[]).forEach((e:any) => { eCounts[e.user_id]     = (eCounts[e.user_id]||0)+1     })
+    ;(bTracks||[]).forEach((t:any)  => { tcCounts[t.tracked_id] = (tcCounts[t.tracked_id]||0)+1 })
     setBuilders((bData||[]).map((u:any) => ({ ...u, entry_count: eCounts[u.id]||0, tracked_count: tcCounts[u.id]||0 })))
 
+    // ALL entries — show complete feed including other users' entries
     const { data: entries } = await supabase.from('entries')
       .select('id, title, description, platform, screenshot_url, secured_at, url, user_id, points, users(id, username, avatar_url)')
-      .neq('user_id', prof.id).order('secured_at', { ascending: false }).limit(50)
+      .eq('status', 'secured')
+      .order('secured_at', { ascending: false }).limit(50)
     setAllEntries(entries||[])
 
+    // Leaderboard
     const { data: lb } = await supabase.from('users')
       .select('id, username, avatar_url, profile_strength')
       .neq('id', prof.id).order('profile_strength', { ascending: false }).limit(4)
     setLeaderboard(lb||[])
 
+    // Platform stats
     const { data: ap } = await supabase.from('entries').select('platform')
     const pmap: Record<string,number> = {}
     ;(ap||[]).forEach((e:any) => {
       const k = (e.platform||'other').toLowerCase().replace(/\s*\(.*?\)\s*/g,'').trim()
       pmap[k] = (pmap[k]||0)+1
     })
-    const iconMap: Record<string,string> = { youtube:'/icons/youtube.png', instagram:'/icons/instagram.png', twitter:'/icons/x.png', x:'/icons/x.png', linkedin:'/icons/linkedin.png' }
+    const iconMap: Record<string,string>  = { youtube:'/icons/youtube.png', instagram:'/icons/instagram.png', twitter:'/icons/x.png', x:'/icons/x.png', linkedin:'/icons/linkedin.png' }
     const labelMap: Record<string,string> = { twitter:'Twitter', x:'Twitter', youtube:'YouTube', instagram:'Instagram', linkedin:'LinkedIn', github:'GitHub' }
-    setPlatformStats(Object.entries(pmap).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([k,v])=>({ platform:labelMap[k]||k, count:v, icon:iconMap[k]??'/icons/others.png' })))
+    setPlatformStats(
+      Object.entries(pmap).sort((a,b)=>b[1]-a[1]).slice(0,4)
+        .map(([k,v])=>({ platform:labelMap[k]||k, count:v, icon:iconMap[k]??'/icons/others.png' }))
+    )
 
     const { data: ann } = await supabase.from('announcements').select('*').order('created_at',{ascending:false}).limit(1).single()
     setAnnouncement(ann)
@@ -156,7 +166,6 @@ export default function DiscoverPage() {
     }
   }
 
-  // Filter + search
   const filteredEntries = (() => {
     let list = allEntries
     if (search) {
@@ -170,7 +179,7 @@ export default function DiscoverPage() {
     switch (filter) {
       case 'platform': {
         const seen = new Set<string>()
-        return list.filter(e => { const p = (e.platform||'other').toLowerCase(); if (seen.has(p)) return false; seen.add(p); return true })
+        return list.filter(e => { const p=(e.platform||'other').toLowerCase(); if(seen.has(p)) return false; seen.add(p); return true })
       }
       case 'content':
         return [...list].sort((a,b) => new Date(b.secured_at).getTime() - new Date(a.secured_at).getTime())
@@ -186,6 +195,7 @@ export default function DiscoverPage() {
     : builders
 
   const maxPlatform = Math.max(...platformStats.map(p => p.count), 1)
+  const myId = profile?.id || ''
 
   const FILTERS: { key: FilterType; label: string }[] = [
     { key:'all',      label:'All' },
@@ -203,72 +213,48 @@ export default function DiscoverPage() {
   return (
     <DashboardLayout user={user}>
       <div className="flex gap-5">
-
-        {/* ══════════════════════════════════════════
-            MAIN COLUMN
-        ══════════════════════════════════════════ */}
         <div className="flex-1 min-w-0">
-
-          {/* Header */}
           <div className="mb-4">
-            <h1 className="text-white text-[22px] md:text-[26px] font-bold tracking-tight">
-              Discover Secured Records
-            </h1>
-            <p className="text-white/40 text-[13px] md:text-[14px] mt-1">
-              Browse permanent entries across the network
-            </p>
+            <h1 className="text-white text-[22px] md:text-[26px] font-bold tracking-tight">Discover Secured Records</h1>
+            <p className="text-white/40 text-[13px] md:text-[14px] mt-1">Browse permanent entries across the network</p>
           </div>
 
-          {/* Search bar */}
-          <div
-            className="flex items-center gap-3 bg-white/[0.05] border border-white/[0.10] rounded-xl px-4 mb-4"
-            style={{ height: '46px' }}
-          >
+          {/* Search */}
+          <div className="flex items-center gap-3 bg-white/[0.05] border border-white/[0.10] rounded-xl px-4 mb-4" style={{ height:'46px' }}>
             <svg className="w-4 h-4 text-white/30 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
               <circle cx="6.5" cy="6.5" r="5"/><path d="M11 11l3 3" strokeLinecap="round"/>
             </svg>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
               placeholder="Search creators, entries, platforms...."
-              className="bg-transparent text-white/70 text-[13px] outline-none flex-1 placeholder-white/30"
-            />
+              className="bg-transparent text-white/70 text-[13px] outline-none flex-1 placeholder-white/30" />
           </div>
 
-          {/* Filter pills — horizontal scroll on mobile */}
+          {/* Filter pills — clicking non-all filter switches to entries tab */}
           <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1 scrollbar-hide">
             {FILTERS.map((f) => (
-              <button
-                key={f.key}
-                onClick={() => setFilter(f.key)}
+              <button key={f.key}
+                onClick={() => { setFilter(f.key); if (f.key !== 'all') setTab('entries') }}
                 className="px-4 py-[7px] rounded-full text-[13px] font-medium border transition-all flex-shrink-0"
                 style={filter === f.key
                   ? { background:'#0038FF', borderColor:'#0038FF', color:'#fff' }
                   : { background:'transparent', borderColor:'rgba(255,255,255,0.14)', color:'rgba(255,255,255,0.55)' }
-                }
-              >
+                }>
                 {f.label}
               </button>
             ))}
           </div>
 
-          {/* ── Creators / Entries tabs ── */}
+          {/* Tabs */}
           <div className="relative mb-6">
             <div className="flex gap-8">
               {(['creators', 'entries'] as const).map((t) => {
                 const active = tab === t
                 return (
-                  <button
-                    key={t}
-                    onClick={() => setTab(t)}
+                  <button key={t} onClick={() => setTab(t)}
                     className="pb-3 text-[14px] font-medium transition-colors relative capitalize"
-                    style={{ color: active ? '#fff' : 'rgba(255,255,255,0.45)' }}
-                  >
+                    style={{ color: active ? '#fff' : 'rgba(255,255,255,0.45)' }}>
                     {t.charAt(0).toUpperCase() + t.slice(1)}
-                    {active && (
-                      <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: '#0038FF' }} />
-                    )}
+                    {active && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background:'#0038FF' }} />}
                   </button>
                 )
               })}
@@ -276,62 +262,47 @@ export default function DiscoverPage() {
             <div className="absolute bottom-0 left-0 right-0 h-[1px]" style={{ background:'rgba(255,255,255,0.10)' }} />
           </div>
 
-          {/* ══════════════════════
-              CREATORS TAB
-          ══════════════════════ */}
+          {/* ── CREATORS ── */}
           {tab === 'creators' && (
             <div className="flex flex-col gap-6">
-
-              {/* Recognized Builders — 2-col grid on mobile */}
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-white font-bold text-[16px]">Recognized Builders</p>
                   <button className="text-white/40 text-[13px] hover:text-white transition-colors">See All</button>
                 </div>
-
-                {/* 2-column grid (mobile) / same grid (desktop shows more columns) */}
                 <div className="grid grid-cols-2 gap-3">
                   {filteredBuilders.slice(0, 4).map((b) => {
-                    const strengthPct = Math.min(((b.profile_strength||0) / 500) * 100, 100)
+                    const strengthPct = Math.min(((b.profile_strength||0)/500)*100, 100)
                     return (
-                      <div
-                        key={b.id}
+                      <div key={b.id}
                         className="border border-white/[0.10] bg-[#0A0A0F] rounded-2xl p-4 flex flex-col gap-3 cursor-pointer"
-                        onClick={() => router.push(`/${b.username}`)}
-                      >
+                        onClick={() => router.push(`/${b.username}`)}>
                         <Avatar src={b.avatar_url} name={b.username} size="lg" />
                         <div>
                           <p className="text-white font-semibold text-[13px] truncate">@{b.username}</p>
                           <p className="text-white/35 text-[11px] truncate">@{b.username}</p>
                         </div>
-                        {/* Identity Strength */}
                         <div>
                           <div className="flex items-center justify-between mb-1.5">
                             <span className="text-white/45 text-[11px]">Identity Strength</span>
-                            <span className="text-[12px] font-bold" style={{ color:'#6B8AFF' }}>
-                              {b.profile_strength||0}
-                            </span>
+                            <span className="text-[12px] font-bold" style={{ color:'#6B8AFF' }}>{b.profile_strength||0}</span>
                           </div>
                           <div className="w-full h-[3px] bg-white/[0.07] rounded-full overflow-hidden">
-                            <div className="h-full rounded-full transition-all" style={{ width:`${strengthPct}%`, background:'#0038FF' }} />
+                            <div className="h-full rounded-full" style={{ width:`${strengthPct}%`, background:'#0038FF' }} />
                           </div>
                         </div>
-                        <TrackButton userId={b.id} trackingMap={trackingMap} onToggle={toggleTrack} variant="blue" />
+                        <TrackButton userId={b.id} myId={myId} trackingMap={trackingMap} onToggle={toggleTrack} variant="blue" />
                       </div>
                     )
                   })}
                 </div>
               </div>
 
-              {/* Creator list — remaining builders */}
               <div className="flex flex-col gap-3">
                 {filteredBuilders.slice(4).map((b) => (
-                  <div
-                    key={b.id}
+                  <div key={b.id}
                     className="border border-white/[0.10] bg-[#0A0A0F] rounded-2xl p-4 flex flex-col gap-3 cursor-pointer"
-                    onClick={() => router.push(`/${b.username}`)}
-                  >
-                    {/* Top row */}
+                    onClick={() => router.push(`/${b.username}`)}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-3 min-w-0">
                         <Avatar src={b.avatar_url} name={b.username} size="md" />
@@ -340,28 +311,21 @@ export default function DiscoverPage() {
                           <p className="text-white/35 text-[11px] truncate">@{b.username}</p>
                         </div>
                       </div>
-                      <TrackButton userId={b.id} trackingMap={trackingMap} onToggle={toggleTrack} variant="pill" />
+                      <TrackButton userId={b.id} myId={myId} trackingMap={trackingMap} onToggle={toggleTrack} variant="pill" />
                     </div>
-                    {/* Bio */}
-                    {b.bio && (
-                      <p className="text-white/45 text-[12px] leading-relaxed line-clamp-2">{b.bio}</p>
-                    )}
-                    {/* Stats row */}
+                    {b.bio && <p className="text-white/45 text-[12px] leading-relaxed line-clamp-2">{b.bio}</p>}
                     <div className="flex items-center gap-4">
-                      <div className="flex flex-col items-center">
-                        <span className="text-[14px] font-bold" style={{ color:'#6B8AFF' }}>{b.profile_strength||0}</span>
-                        <span className="text-white/35 text-[10px]">Strength</span>
-                      </div>
-                      <div className="flex flex-col items-center">
-                        <span className="text-[14px] font-bold" style={{ color:'#6B8AFF' }}>{b.entry_count}</span>
-                        <span className="text-white/35 text-[10px]">Entries</span>
-                      </div>
-                      <div className="flex flex-col items-center">
-                        <span className="text-[14px] font-bold" style={{ color:'#6B8AFF' }}>{b.tracked_count}</span>
-                        <span className="text-white/35 text-[10px]">Tracked by</span>
-                      </div>
+                      {[
+                        { label:'Strength',   val: b.profile_strength||0 },
+                        { label:'Entries',    val: b.entry_count },
+                        { label:'Tracked by', val: b.tracked_count },
+                      ].map(s=>(
+                        <div key={s.label} className="flex flex-col items-center">
+                          <span className="text-[14px] font-bold" style={{ color:'#6B8AFF' }}>{s.val}</span>
+                          <span className="text-white/35 text-[10px]">{s.label}</span>
+                        </div>
+                      ))}
                     </div>
-                    {/* Latest entry preview */}
                     {(() => {
                       const latest = allEntries.find(e => e.user_id === b.id)
                       if (!latest) return null
@@ -381,13 +345,13 @@ export default function DiscoverPage() {
             </div>
           )}
 
-          {/* ══════════════════════
-              ENTRIES TAB
-          ══════════════════════ */}
+          {/* ── ENTRIES ── */}
           {tab === 'entries' && (
             <div>
               <div className="flex items-center justify-between mb-4">
-                <p className="text-white font-bold text-[16px]">Recent Entries</p>
+                <p className="text-white font-bold text-[16px]">
+                  {filter==='all' ? 'Recent Entries' : filter==='platform' ? 'Entries by Platform' : filter==='content' ? 'All Content' : 'Recent Activity'}
+                </p>
                 <button className="text-white/40 text-[13px] hover:text-white transition-colors">See All</button>
               </div>
 
@@ -396,23 +360,18 @@ export default function DiscoverPage() {
               ) : (
                 <div className="flex flex-col gap-3">
                   {filteredEntries.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="border border-white/[0.10] bg-[#0A0A0F] rounded-2xl p-4 flex flex-col gap-3"
-                    >
+                    <div key={entry.id} className="border border-white/[0.10] bg-[#0A0A0F] rounded-2xl p-4 flex flex-col gap-3">
                       {/* Creator row */}
                       <div className="flex items-center justify-between">
-                        <div
-                          className="flex items-center gap-2.5 cursor-pointer"
-                          onClick={() => entry.users?.username && router.push(`/${entry.users.username}`)}
-                        >
+                        <div className="flex items-center gap-2.5 cursor-pointer"
+                          onClick={() => entry.users?.username && router.push(`/${entry.users.username}`)}>
                           <Avatar src={entry.users?.avatar_url} name={entry.users?.username||'?'} size="sm" />
                           <div>
                             <p className="text-white font-semibold text-[13px]">@{entry.users?.username}</p>
                             <p className="text-white/30 text-[11px]">@{entry.users?.username}</p>
                           </div>
                         </div>
-                        <TrackButton userId={entry.users?.id} trackingMap={trackingMap} onToggle={toggleTrack} variant="pill" />
+                        <TrackButton userId={entry.users?.id||''} myId={myId} trackingMap={trackingMap} onToggle={toggleTrack} variant="pill" />
                       </div>
 
                       {/* Entry content */}
@@ -428,11 +387,17 @@ export default function DiscoverPage() {
                         </div>
                       </div>
 
-                      {/* Footer */}
+                      {/* Thumbnail */}
+                      {entry.screenshot_url && (
+                        <img src={entry.screenshot_url} alt=""
+                          className="w-full rounded-xl object-cover" style={{ maxHeight:'200px' }} />
+                      )}
+
+                      {/* Footer — identify opens original URL */}
                       <div className="flex items-center justify-between pt-1 border-t border-white/[0.06]">
                         <span className="text-[#6B8AFF] text-[12px]">{shortDate(entry.secured_at)}</span>
                         <button
-                          onClick={() => entry.users?.username && router.push(`/${entry.users.username}`)}
+                          onClick={() => entry.url && window.open(entry.url, '_blank', 'noopener,noreferrer')}
                           className="text-white/35 text-[12px] hover:text-white transition-colors flex items-center gap-1"
                         >
                           identify →
@@ -446,17 +411,13 @@ export default function DiscoverPage() {
           )}
         </div>
 
-        {/* ══════════════════════════════════════════
-            RIGHT SIDEBAR — desktop only
-        ══════════════════════════════════════════ */}
+        {/* ── Right sidebar ── */}
         <div className="hidden md:flex flex-shrink-0 flex-col gap-4" style={{ width:'280px' }}>
-
-          {/* Stats */}
           <div className="border border-white/[0.10] bg-[#0A0A0F] rounded-2xl p-4">
             <div className="grid grid-cols-3 divide-x divide-white/[0.08]">
               {[
-                { label:'ENTRIES',  val: stats.entries>=1000 ? `${(stats.entries/1000).toFixed(1)}k` : String(stats.entries), color:'text-white' },
-                { label:'CREATOR',  val: stats.creators>=1000 ? `${(stats.creators/1000).toFixed(1)}k` : String(stats.creators), color:'text-white' },
+                { label:'ENTRIES',  val: stats.entries>=1000?`${(stats.entries/1000).toFixed(1)}k`:String(stats.entries), color:'text-white' },
+                { label:'CREATORS', val: stats.creators>=1000?`${(stats.creators/1000).toFixed(1)}k`:String(stats.creators), color:'text-white' },
                 { label:'TODAY',    val: `+${stats.today}`, color:'text-green-400' },
               ].map((s) => (
                 <div key={s.label} className="flex flex-col items-center gap-0.5 px-2">
@@ -467,7 +428,6 @@ export default function DiscoverPage() {
             </div>
           </div>
 
-          {/* Leaderboard */}
           <div className="border border-white/[0.10] bg-[#0A0A0F] rounded-2xl p-4 flex flex-col gap-3">
             <p className="text-white/55 text-[11px] font-bold tracking-[0.12em] uppercase">Leaderboard</p>
             {leaderboard.length === 0
@@ -479,13 +439,12 @@ export default function DiscoverPage() {
                     <p className="text-white/80 text-[12px] font-medium truncate">{u.username}</p>
                     <p className="text-white/30 text-[11px]">{u.profile_strength||0}pts</p>
                   </div>
-                  <TrackButton userId={u.id} trackingMap={trackingMap} onToggle={toggleTrack} variant="pill" />
+                  <TrackButton userId={u.id} myId={myId} trackingMap={trackingMap} onToggle={toggleTrack} variant="pill" />
                 </div>
               ))
             }
           </div>
 
-          {/* Platform stats */}
           {platformStats.length > 0 && (
             <div className="border border-white/[0.10] bg-[#0A0A0F] rounded-2xl p-4 flex flex-col gap-3">
               <p className="text-white/55 text-[11px] font-bold tracking-[0.12em] uppercase">Secured by Platform</p>
@@ -506,13 +465,11 @@ export default function DiscoverPage() {
             </div>
           )}
 
-          {/* Announcement */}
           {announcement && (
             <div className="border border-white/[0.10] bg-[#0A0A0F] rounded-2xl p-4 flex flex-col gap-2">
               <p className="text-[11px] font-bold tracking-[0.12em] uppercase" style={{ color:'#0038FF' }}>New Feature</p>
               <p className="text-white font-semibold text-[13px] leading-tight">{announcement.title}</p>
               <p className="text-white/35 text-[11px] leading-relaxed line-clamp-3">{announcement.body}</p>
-              <button className="flex items-center gap-1 text-[12px] font-medium hover:opacity-70 transition-opacity self-start mt-1" style={{ color:'#0038FF' }}>Learn More ↗</button>
             </div>
           )}
         </div>

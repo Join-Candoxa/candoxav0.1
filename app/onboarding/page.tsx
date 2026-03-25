@@ -23,31 +23,53 @@ function OnboardingContent() {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
-  // step 0 = invite gate, 1 = sign in, 'loading', 2 = username, 3 = identity, 4 = first record, 'success'
-  const [step,    setStep]    = useState<number | 'loading' | 'success'>(0)
+  const [step,    setStep]    = useState<number | 'loading' | 'success' | 'checking'>('checking')
   const [data,    setData]    = useState<OnboardingData>({
     inviteCode: '', username: '', bio: '', avatarFile: null, avatarPreview: null,
   })
   const [secured, setSecured] = useState<{ title: string; platform: string } | null>(null)
 
   useEffect(() => {
-    const s = searchParams.get('step')
-    if (s === '3') {
-      // Returned from Google OAuth redirect
-      setStep('loading')
-      setTimeout(() => setStep(2), 2500)
+    const init = async () => {
+      // Check if user is already authenticated
+      const { data: { session } } = await supabase.auth.getSession()
+
+      const stepParam = searchParams.get('step')
+
+      if (stepParam === '3') {
+        // Returned from Google OAuth redirect — proceed to username setup
+        setStep('loading')
+        return
+      }
+
+      if (session?.user) {
+        // Already signed in — check if they have a username set up
+        const { data: profile } = await supabase
+          .from('users').select('username').eq('email', session.user.email).single()
+
+        if (profile?.username) {
+          // Fully registered — go straight to dashboard
+          router.push('/dashboard')
+          return
+        } else {
+          // Signed in but no username yet — skip to step 2
+          setStep(2)
+          return
+        }
+      }
+
+      // Not signed in — start from invite code gate
+      setStep(0)
     }
+
+    init()
   }, [searchParams])
 
-  const next = () => {
-    if (step === 0)  return setStep(1)
-    if (step === 1)  return setStep('loading')
-    if (step === 2)  return setStep(3)
-    if (step === 3)  return setStep(4)
-    if (step === 4)  return router.push('/dashboard')
-  }
-
-  const back = (s: number) => setStep(s)
+  if (step === 'checking') return (
+    <div className="min-h-screen bg-[#060608] flex items-center justify-center">
+      <div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+    </div>
+  )
 
   if (step === 'loading') return (
     <StepLoading onDone={() => setStep(2)} />
@@ -63,7 +85,6 @@ function OnboardingContent() {
 
   return (
     <div className="min-h-screen bg-[#060608] flex flex-col items-center justify-center px-5 py-10">
-      {/* Logo — only on step 0 */}
       {step === 0 && (
         <div className="mb-8 self-start">
           <Image src="/logo.png" alt="Candoxa" width={130} height={40} className="object-contain" priority />
@@ -71,11 +92,16 @@ function OnboardingContent() {
       )}
 
       {step === 0 && (
-        <StepInviteCode data={data} setData={setData} onNext={() => setStep(1)} />
+        <StepInviteCode
+          data={data}
+          setData={setData}
+          onNext={() => setStep(1)}
+          onAlreadyRegistered={() => setStep(1)}
+        />
       )}
       {step === 1 && (
         <StepSignIn
-          onNext={() => { setStep('loading') }}
+          onNext={() => setStep('loading')}
           onBack={() => setStep(0)}
         />
       )}
@@ -91,7 +117,7 @@ function OnboardingContent() {
           setData={setData}
           onNext={(entry) => {
             if (entry) { setSecured(entry); setStep('success') }
-            else        router.push('/dashboard')
+            else router.push('/dashboard')
           }}
           onBack={() => setStep(3)}
         />
@@ -101,9 +127,7 @@ function OnboardingContent() {
 }
 
 // ── Success screen ────────────────────────────────────────────────────────────
-function SuccessScreen({
-  entry, onSecureAnother, onViewProfile,
-}: {
+function SuccessScreen({ entry, onSecureAnother, onViewProfile }: {
   entry: { title: string; platform: string }
   onSecureAnother: () => void
   onViewProfile:   () => void
@@ -119,9 +143,7 @@ function SuccessScreen({
   return (
     <div className="min-h-screen bg-[#060608] flex flex-col items-center justify-center px-5">
       <div className="w-full max-w-sm flex flex-col gap-5">
-        {/* Entry card */}
         <div className="bg-[#0A0A0F] border border-white/[0.10] rounded-2xl overflow-hidden">
-          {/* Card top */}
           <div className="flex items-center justify-between px-4 pt-4 pb-3">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-white/[0.06] flex items-center justify-center overflow-hidden">
@@ -129,15 +151,11 @@ function SuccessScreen({
               </div>
               <p className="text-white font-semibold text-[14px]">{entry.title}</p>
             </div>
-            <span
-              className="text-[11px] font-bold px-3 py-1 rounded-full border"
-              style={{ borderColor: '#0038FF', color: '#6B8AFF', background: 'rgba(0,56,255,0.10)' }}
-            >
+            <span className="text-[11px] font-bold px-3 py-1 rounded-full border"
+              style={{ borderColor:'#0038FF', color:'#6B8AFF', background:'rgba(0,56,255,0.10)' }}>
               SECURED
             </span>
           </div>
-
-          {/* Shield visual */}
           <div className="flex items-center justify-center py-10 bg-black/30">
             <div className="w-16 h-16 rounded-2xl bg-white/[0.05] border border-white/[0.08] flex items-center justify-center">
               <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="1.5" strokeLinecap="round" className="w-8 h-8">
@@ -145,34 +163,22 @@ function SuccessScreen({
               </svg>
             </div>
           </div>
-
-          {/* Bottom bar */}
-          <div className="px-4 pb-4 pt-2">
-            <div className="h-1.5 w-24 bg-white/[0.07] rounded-full" />
-          </div>
+          <div className="px-4 pb-4 pt-2"><div className="h-1.5 w-24 bg-white/[0.07] rounded-full" /></div>
         </div>
 
-        {/* Confirmation text */}
         <div className="text-center">
           <h2 className="text-white text-[26px] font-bold mb-2">Secured.</h2>
-          <p className="text-white/40 text-[14px] leading-relaxed">
-            This record is now permanently tied to your identity.
-          </p>
+          <p className="text-white/40 text-[14px] leading-relaxed">This record is now permanently tied to your identity.</p>
         </div>
 
-        {/* Buttons */}
         <div className="flex gap-3">
-          <button
-            onClick={onSecureAnother}
-            className="flex-1 py-4 rounded-2xl border border-white/[0.15] text-white text-[14px] font-semibold"
-          >
+          <button onClick={onSecureAnother}
+            className="flex-1 py-4 rounded-2xl border border-white/[0.15] text-white text-[14px] font-semibold">
             Secure Another
           </button>
-          <button
-            onClick={onViewProfile}
+          <button onClick={onViewProfile}
             className="flex-1 py-4 rounded-2xl text-white text-[14px] font-semibold"
-            style={{ background: '#0038FF' }}
-          >
+            style={{ background:'#0038FF' }}>
             View Profile
           </button>
         </div>
@@ -180,6 +186,9 @@ function SuccessScreen({
     </div>
   )
 }
+
+// ── Need supabase for the auth check ──────────────────────────────────────────
+import { supabase } from '@/lib/supabase'
 
 export default function OnboardingPage() {
   return (
