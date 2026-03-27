@@ -29,23 +29,26 @@ export default function StepSignIn({ onNext, onBack }: Props) {
           setError('Could not get token. Please try again.')
           setPrivyLoading(false); setPrivyTriggered(false); return
         }
-        const res  = await fetch('/api/auth/privy', {
+        const res = await fetch('/api/auth/privy', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({ accessToken: privyToken }),
         })
         const d = await res.json()
         if (!res.ok || d.error) {
-          setError(d.error || 'Authentication failed.'); setPrivyLoading(false); setPrivyTriggered(false); return
+          setError(d.error || 'Authentication failed.')
+          setPrivyLoading(false); setPrivyTriggered(false); return
         }
         const { error: verifyError } = await supabase.auth.verifyOtp({ token_hash: d.token, type: 'magiclink' })
         if (verifyError) {
-          setError('Failed to establish session.'); setPrivyLoading(false); setPrivyTriggered(false); return
+          setError('Failed to establish session.')
+          setPrivyLoading(false); setPrivyTriggered(false); return
         }
         setPrivyTriggered(false)
         onNext()
       } catch {
-        setError('Something went wrong.'); setPrivyLoading(false); setPrivyTriggered(false)
+        setError('Something went wrong.')
+        setPrivyLoading(false); setPrivyTriggered(false)
       }
     }
     exchangeToken()
@@ -68,18 +71,22 @@ export default function StepSignIn({ onNext, onBack }: Props) {
 
   return (
     <div className="w-full max-w-sm flex flex-col min-h-[80vh]">
-      {/* Logo */}
-      <div className="flex items-center gap-2 mb-8">
-        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0">
-          <div className="w-4 h-4 rounded-full bg-black" />
-        </div>
-        <span className="text-white font-bold text-[17px]">Candoxa</span>
+
+      {/* ── Real Candoxa logo ── */}
+      <div className="mb-8">
+        <Image
+          src="/logo.png"
+          alt="Candoxa"
+          width={130}
+          height={40}
+          className="object-contain"
+          priority
+        />
       </div>
 
       {/* Step label */}
       <p className="text-[#6B8AFF] text-[14px] font-medium mb-2">Step 1 of 4</p>
 
-      {/* Heading */}
       <h1 className="text-white text-[30px] font-bold leading-tight mb-2">
         Welcome to Candoxa
       </h1>
@@ -87,10 +94,8 @@ export default function StepSignIn({ onNext, onBack }: Props) {
         Own your digital identity permanently.
       </p>
 
-      {/* Spacer pushes buttons down */}
       <div className="flex-1" />
 
-      {/* Buttons */}
       <div className="flex flex-col gap-3">
         <button
           onClick={handleGoogle}
@@ -112,13 +117,13 @@ export default function StepSignIn({ onNext, onBack }: Props) {
           }
         </button>
 
-        {error && (
-          <p className="text-red-400 text-[12px] text-center">{error}</p>
-        )}
+        {error && <p className="text-red-400 text-[12px] text-center">{error}</p>}
 
         <p className="text-white/35 text-[13px] text-center mt-1">
           Already have an account?{' '}
-          <span onClick={() => router.push('/signin')} className="text-[#6B8AFF] cursor-pointer">Sign In</span>
+          <span onClick={() => router.push('/signin')} className="text-[#6B8AFF] cursor-pointer font-medium">
+            Sign In
+          </span>
         </p>
       </div>
 
