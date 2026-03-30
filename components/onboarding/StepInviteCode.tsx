@@ -2,17 +2,19 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { OnboardingData } from '@/app/onboarding/page'
 
 type Props = {
   data:                OnboardingData
   setData:             (d: OnboardingData) => void
-  onNext:              () => void       // validated invite code — go to step 1 (new user)
-  onAlreadyRegistered: () => void       // skip straight to sign-in (existing user)
+  onNext:              () => void
+  onAlreadyRegistered: () => void
 }
 
 export default function StepInviteCode({ data, setData, onNext, onAlreadyRegistered }: Props) {
+  const router = useRouter()
   const [code,     setCode]     = useState(data.inviteCode || '')
   const [error,    setError]    = useState('')
   const [valid,    setValid]    = useState(false)
@@ -67,18 +69,15 @@ export default function StepInviteCode({ data, setData, onNext, onAlreadyRegiste
       </div>
       {error && <p className="text-red-400 text-[12px] mb-2">{error}</p>}
 
-      <button
-        onClick={onNext}
-        disabled={!valid}
+      <button onClick={onNext} disabled={!valid}
         className="w-full py-4 rounded-xl text-white text-[15px] font-semibold mt-5 transition-all disabled:opacity-40"
-        style={{ background: '#0038FF' }}
-      >
+        style={{ background: '#0038FF' }}>
         Verify & Continue →
       </button>
 
-      {/* Already registered — calls onAlreadyRegistered which goes to StepSignIn directly */}
+      {/* Goes directly to /signin page — not StepSignIn component */}
       <button
-        onClick={onAlreadyRegistered}
+        onClick={() => router.push('/signin')}
         className="w-full text-center py-3 mt-3 text-white/40 text-[13px] hover:text-white/60 transition-colors"
       >
         Already registered?{' '}
