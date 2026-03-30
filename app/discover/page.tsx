@@ -39,14 +39,11 @@ function Avatar({ src, name, size = 'md' }: { src: string | null; name: string; 
   return <div className={`${sz} rounded-full flex items-center justify-center flex-shrink-0 ${color}`}><span className="text-white font-bold">{i}</span></div>
 }
 
-// ── TrackButton — "Track" when not tracking, "Tracking" when tracking ──────────
 function TrackButton({ userId, myId, trackingMap, onToggle, variant = 'pill' }: {
   userId: string; myId: string; trackingMap: Record<string, boolean>
   onToggle: (id: string) => void; variant?: 'pill'|'blue'
 }) {
-  // Never show track button on own profile
   if (userId === myId) return null
-
   const isTracking = !!trackingMap[userId]
 
   if (variant === 'blue') return (
@@ -99,21 +96,22 @@ export default function DiscoverPage() {
 
     const [{ count: eCount }, { count: cCount }, { count: tCount }] = await Promise.all([
       supabase.from('entries').select('*', { count:'exact', head:true }),
-      supabase.from('users').select('*',   { count:'exact', head:true }),
+      supabase.from('users').select('*', { count:'exact', head:true }).eq('role', 'user'),
       supabase.from('entries').select('*', { count:'exact', head:true }).gte('secured_at', todayMid.toISOString()),
     ])
     setStats({ entries: eCount||0, creators: cCount||0, today: tCount||0 })
 
-    // Who current user is tracking
     const { data: tRows } = await supabase.from('trackers').select('tracked_id').eq('tracker_id', prof.id)
     const tmap: Record<string, boolean> = {}
     ;(tRows||[]).forEach((r: any) => { tmap[r.tracked_id] = true })
     setTrackingMap(tmap)
 
-    // Builders — exclude self
+    // Builders — regular users only, exclude self
     const { data: bData } = await supabase.from('users')
       .select('id, username, avatar_url, bio, profile_strength')
-      .neq('id', prof.id).order('profile_strength', { ascending: false }).limit(8)
+      .neq('id', prof.id)
+      .eq('role', 'user')
+      .order('profile_strength', { ascending: false }).limit(8)
     const bIds = (bData||[]).map((u: any) => u.id)
     const [{ data: bEntries }, { data: bTracks }] = await Promise.all([
       supabase.from('entries').select('user_id').in('user_id', bIds),
@@ -124,17 +122,20 @@ export default function DiscoverPage() {
     ;(bTracks||[]).forEach((t:any)  => { tcCounts[t.tracked_id] = (tcCounts[t.tracked_id]||0)+1 })
     setBuilders((bData||[]).map((u:any) => ({ ...u, entry_count: eCounts[u.id]||0, tracked_count: tcCounts[u.id]||0 })))
 
-    // ALL entries — show complete feed including other users' entries
+    // All secured entries
     const { data: entries } = await supabase.from('entries')
-      .select('id, title, description, platform, screenshot_url, secured_at, url, user_id, points, users(id, username, avatar_url)')
+      .select('id, title, description, platform, screenshot_url, secured_at, url, user_id, points, users(id, username, avatar_url, role)')
       .eq('status', 'secured')
       .order('secured_at', { ascending: false }).limit(50)
-    setAllEntries(entries||[])
+    // Filter out entries belonging to admin accounts
+    setAllEntries((entries||[]).filter((e: any) => e.users?.role !== 'admin'))
 
-    // Leaderboard
+    // Leaderboard — regular users only
     const { data: lb } = await supabase.from('users')
       .select('id, username, avatar_url, profile_strength')
-      .neq('id', prof.id).order('profile_strength', { ascending: false }).limit(4)
+      .neq('id', prof.id)
+      .eq('role', 'user')
+      .order('profile_strength', { ascending: false }).limit(4)
     setLeaderboard(lb||[])
 
     // Platform stats
@@ -219,7 +220,6 @@ export default function DiscoverPage() {
             <p className="text-white/40 text-[13px] md:text-[14px] mt-1">Browse permanent entries across the network</p>
           </div>
 
-          {/* Search */}
           <div className="flex items-center gap-3 bg-white/[0.05] border border-white/[0.10] rounded-xl px-4 mb-4" style={{ height:'46px' }}>
             <svg className="w-4 h-4 text-white/30 flex-shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
               <circle cx="6.5" cy="6.5" r="5"/><path d="M11 11l3 3" strokeLinecap="round"/>
@@ -229,7 +229,6 @@ export default function DiscoverPage() {
               className="bg-transparent text-white/70 text-[13px] outline-none flex-1 placeholder-white/30" />
           </div>
 
-          {/* Filter pills — clicking non-all filter switches to entries tab */}
           <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1 scrollbar-hide">
             {FILTERS.map((f) => (
               <button key={f.key}
@@ -244,7 +243,6 @@ export default function DiscoverPage() {
             ))}
           </div>
 
-          {/* Tabs */}
           <div className="relative mb-6">
             <div className="flex gap-8">
               {(['creators', 'entries'] as const).map((t) => {
@@ -361,7 +359,6 @@ export default function DiscoverPage() {
                 <div className="flex flex-col gap-3">
                   {filteredEntries.map((entry) => (
                     <div key={entry.id} className="border border-white/[0.10] bg-[#0A0A0F] rounded-2xl p-4 flex flex-col gap-3">
-                      {/* Creator row */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2.5 cursor-pointer"
                           onClick={() => entry.users?.username && router.push(`/${entry.users.username}`)}>
@@ -374,7 +371,6 @@ export default function DiscoverPage() {
                         <TrackButton userId={entry.users?.id||''} myId={myId} trackingMap={trackingMap} onToggle={toggleTrack} variant="pill" />
                       </div>
 
-                      {/* Entry content */}
                       <div className="flex items-start gap-2.5">
                         <div className="w-7 h-7 rounded-lg bg-white/[0.06] flex items-center justify-center flex-shrink-0 overflow-hidden mt-0.5">
                           <Image src={platformIcon(entry.platform)} alt={entry.platform||'platform'} width={18} height={18} />
@@ -387,19 +383,16 @@ export default function DiscoverPage() {
                         </div>
                       </div>
 
-                      {/* Thumbnail */}
                       {entry.screenshot_url && (
                         <img src={entry.screenshot_url} alt=""
                           className="w-full rounded-xl object-cover" style={{ maxHeight:'200px' }} />
                       )}
 
-                      {/* Footer — identify opens original URL */}
                       <div className="flex items-center justify-between pt-1 border-t border-white/[0.06]">
                         <span className="text-[#6B8AFF] text-[12px]">{shortDate(entry.secured_at)}</span>
                         <button
                           onClick={() => entry.url && window.open(entry.url, '_blank', 'noopener,noreferrer')}
-                          className="text-white/35 text-[12px] hover:text-white transition-colors flex items-center gap-1"
-                        >
+                          className="text-white/35 text-[12px] hover:text-white transition-colors flex items-center gap-1">
                           identify →
                         </button>
                       </div>

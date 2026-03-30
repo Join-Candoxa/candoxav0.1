@@ -28,10 +28,12 @@ export default function DashboardHome({ user }: { user: any }) {
           .order('secured_at', { ascending: false })
         setEntries(entriesData || [])
 
+        // Only show regular users in trending, not admins
         const { data: trendingData } = await supabase
           .from('users')
           .select('id, username, avatar_url, profile_strength')
           .neq('id', profileData.id)
+          .eq('role', 'user')
           .order('profile_strength', { ascending: false })
           .limit(4)
         setTrending(trendingData || [])
@@ -89,11 +91,9 @@ export default function DashboardHome({ user }: { user: any }) {
               Here's what's happening with your identity today.
             </p>
           </div>
-          <button
-            onClick={() => setShowAddEntry(true)}
+          <button onClick={() => setShowAddEntry(true)}
             style={{ background:'#0038FF', width:'167px', height:'52px', borderRadius:'300px' }}
-            className="flex items-center justify-center text-white text-[14px] font-semibold flex-shrink-0 hover:opacity-90 transition-opacity whitespace-nowrap"
-          >
+            className="flex items-center justify-center text-white text-[14px] font-semibold flex-shrink-0 hover:opacity-90 transition-opacity whitespace-nowrap">
             + Add Entry
           </button>
         </div>
@@ -213,17 +213,13 @@ export default function DashboardHome({ user }: { user: any }) {
           </>
         )}
 
-        {/* Tracking tab */}
-        {activeTab === 'tracking' && (
-          <TrackingTab profile={profile} />
-        )}
+        {activeTab === 'tracking' && <TrackingTab profile={profile} />}
       </div>
 
       {/* Desktop right sidebar */}
       {activeTab === 'secured' && (
         <div className="hidden md:flex flex-shrink-0 flex-col gap-4" style={{ width:'320px' }}>
 
-          {/* Profile Strength */}
           <div className="border border-white/[0.10] bg-[#0A0A0F] flex flex-col"
             style={{ borderRadius:'16px', padding:'20px', gap:'16px', height:'223px' }}>
             <p className="text-white/55 text-[11px] font-semibold tracking-[0.12em] uppercase">Your Profile Strength</p>
@@ -243,7 +239,6 @@ export default function DashboardHome({ user }: { user: any }) {
             </button>
           </div>
 
-          {/* Trending Builders */}
           <div className="border border-white/[0.10] bg-[#0A0A0F] flex flex-col"
             style={{ borderRadius:'16px', padding:'15px', gap:'16px', height:'284px' }}>
             <p className="text-white/55 text-[11px] font-semibold tracking-[0.12em] uppercase">Trending Builders</p>
@@ -267,7 +262,6 @@ export default function DashboardHome({ user }: { user: any }) {
                         <p className="text-white/85 text-[13px] font-medium truncate">{u.username}</p>
                         <p className="text-white/35 text-[11px]">{u.profile_strength || 0}pts</p>
                       </div>
-                      {/* Fixed: now navigates to public profile */}
                       <button onClick={() => router.push(`/${u.username}`)}
                         className="flex items-center gap-1 text-white/35 text-[11px] hover:text-white/65 transition-colors flex-shrink-0">
                         + View
@@ -279,7 +273,6 @@ export default function DashboardHome({ user }: { user: any }) {
             )}
           </div>
 
-          {/* Platform Update */}
           <div className="border border-white/[0.10] bg-[#0A0A0F] flex flex-col"
             style={{ borderRadius:'12px', padding:'10px', gap:'7px', height:'133px' }}>
             <PlatformUpdateWidget />
@@ -313,7 +306,9 @@ function PlatformUpdateWidget() {
         <>
           <p className="text-white font-semibold text-[13px] leading-tight">{announcement.title}</p>
           <p className="text-white/35 text-[11px] leading-relaxed line-clamp-2 flex-1">{announcement.body}</p>
-          <button className="flex items-center gap-1 text-white/40 text-[11px] hover:text-white/70 transition-colors self-start">View Details ↗</button>
+          <button className="flex items-center gap-1 text-white/40 text-[11px] hover:text-white/70 transition-colors self-start">
+            View Details ↗
+          </button>
         </>
       )}
     </div>
