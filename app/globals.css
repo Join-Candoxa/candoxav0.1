@@ -7,163 +7,50 @@
 
 /* ── Dark theme (default) ─────────────────────────────────────────────────── */
 :root {
-  --blue:         #2563EB;
+  --blue:         #0038FF;
   --blue-bright:  #3B82F6;
   --bg:           #000000;
   --bg-card:      #0A0A0F;
   --bg-card2:     #0D0D1A;
   --border:       rgba(255,255,255,0.08);
   --text:         #FFFFFF;
-  --muted:        rgba(255,255,255,0.5);
+  --text-muted:   rgba(255,255,255,0.5);
   --topbar-bg:    #0A0A0F;
-  --sidebar-bg:   #060608;
   --input-bg:     #0A0A0F;
   --input-border: rgba(255,255,255,0.12);
 }
 
 /* ── Light theme ──────────────────────────────────────────────────────────── */
-[data-theme="light"] {
-  --blue:         #0038FF;
-  --blue-bright:  #3B82F6;
-  --bg:           #F4F5F7;
-  --bg-card:      #FFFFFF;
-  --bg-card2:     #F0F1F4;
-  --border:       rgba(0,0,0,0.08);
-  --text:         #0A0A0F;
-  --muted:        rgba(0,0,0,0.5);
-  --topbar-bg:    #FFFFFF;
-  --sidebar-bg:   #FFFFFF;
-  --input-bg:     #F4F5F7;
-  --input-border: rgba(0,0,0,0.12);
-}
-
-/* ── Light theme overrides ────────────────────────────────────────────────── */
+/* Strategy: invert the entire page, then invert images/videos back.
+   Also re-invert the blue brand color so it stays blue not orange.
+   This is the most reliable approach for a dark-by-default Tailwind app. */
 [data-theme="light"] body {
-  background: var(--bg);
-  color: var(--text);
+  filter: invert(1) hue-rotate(180deg);
+  background: #ffffff;
 }
 
-/* Cards */
-[data-theme="light"] .bg-\[#0A0A0F\],
-[data-theme="light"] .bg-\[#0a0a0f\] {
-  background-color: #FFFFFF !important;
+/* Restore images, videos, avatars back to normal */
+[data-theme="light"] img,
+[data-theme="light"] video,
+[data-theme="light"] canvas,
+[data-theme="light"] svg image {
+  filter: invert(1) hue-rotate(180deg);
 }
 
-[data-theme="light"] .bg-\[#060608\] {
-  background-color: #F4F5F7 !important;
+/* Restore blue brand buttons — invert(1) hue-rotate(180deg) turns #0038FF into orange,
+   so we counter-invert blue elements */
+[data-theme="light"] [style*="background: #0038FF"],
+[data-theme="light"] [style*="background:#0038FF"],
+[data-theme="light"] [style*="background: rgb(0, 56, 255)"] {
+  filter: invert(1) hue-rotate(180deg);
 }
 
-[data-theme="light"] .bg-\[#0d1020\],
-[data-theme="light"] .bg-\[#0D1020\] {
-  background-color: #F0F1F4 !important;
+/* Restore inline SVGs so icons stay readable */
+[data-theme="light"] svg:not([data-no-invert]) {
+  filter: none;
 }
 
-[data-theme="light"] .bg-\[#111118\] {
-  background-color: #F0F1F4 !important;
-}
-
-[data-theme="light"] .bg-\[#0a0a12\],
-[data-theme="light"] .bg-\[#0A0A12\] {
-  background-color: #F4F5F7 !important;
-}
-
-/* Text */
-[data-theme="light"] .text-white {
-  color: #0A0A0F !important;
-}
-
-[data-theme="light"] .text-white\/80,
-[data-theme="light"] .text-white\/75,
-[data-theme="light"] .text-white\/70 {
-  color: rgba(10,10,15,0.80) !important;
-}
-
-[data-theme="light"] .text-white\/60,
-[data-theme="light"] .text-white\/55,
-[data-theme="light"] .text-white\/50 {
-  color: rgba(10,10,15,0.55) !important;
-}
-
-[data-theme="light"] .text-white\/45,
-[data-theme="light"] .text-white\/40 {
-  color: rgba(10,10,15,0.45) !important;
-}
-
-[data-theme="light"] .text-white\/35,
-[data-theme="light"] .text-white\/30 {
-  color: rgba(10,10,15,0.35) !important;
-}
-
-[data-theme="light"] .text-white\/25,
-[data-theme="light"] .text-white\/20 {
-  color: rgba(10,10,15,0.25) !important;
-}
-
-/* Borders */
-[data-theme="light"] .border-white\/\[0\.10\],
-[data-theme="light"] .border-white\/\[0\.08\],
-[data-theme="light"] .border-white\/\[0\.07\],
-[data-theme="light"] .border-white\/\[0\.06\] {
-  border-color: rgba(0,0,0,0.08) !important;
-}
-
-[data-theme="light"] .border-white\/\[0\.15\],
-[data-theme="light"] .border-white\/\[0\.12\] {
-  border-color: rgba(0,0,0,0.12) !important;
-}
-
-[data-theme="light"] .divide-white\/\[0\.06\] > * + * {
-  border-color: rgba(0,0,0,0.06) !important;
-}
-
-/* Backgrounds with opacity */
-[data-theme="light"] .bg-white\/\[0\.04\],
-[data-theme="light"] .bg-white\/\[0\.05\],
-[data-theme="light"] .bg-white\/\[0\.06\],
-[data-theme="light"] .bg-white\/\[0\.07\] {
-  background-color: rgba(0,0,0,0.04) !important;
-}
-
-[data-theme="light"] .bg-white\/\[0\.10\],
-[data-theme="light"] .bg-white\/\[0\.08\] {
-  background-color: rgba(0,0,0,0.06) !important;
-}
-
-[data-theme="light"] .bg-black\/30,
-[data-theme="light"] .bg-black\/60,
-[data-theme="light"] .bg-black\/70 {
-  background-color: rgba(0,0,0,0.40) !important;
-}
-
-/* Topbar */
-[data-theme="light"] .bg-\[#0A0A0F\].border-b {
-  background-color: #FFFFFF !important;
-  border-color: rgba(0,0,0,0.08) !important;
-}
-
-/* Inputs */
-[data-theme="light"] input:not([type="file"]),
-[data-theme="light"] textarea,
-[data-theme="light"] select {
-  background-color: var(--input-bg) !important;
-  color: var(--text) !important;
-  border-color: var(--input-border) !important;
-}
-
-[data-theme="light"] input::placeholder,
-[data-theme="light"] textarea::placeholder {
-  color: rgba(0,0,0,0.3) !important;
-}
-
-/* Scrollbar */
-[data-theme="light"] ::-webkit-scrollbar-track {
-  background: #F4F5F7;
-}
-[data-theme="light"] ::-webkit-scrollbar-thumb {
-  background: rgba(0,0,0,0.15);
-}
-
-/* ── Base styles (both themes) ────────────────────────────────────────────── */
+/* ── Base styles ──────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html { scroll-behavior: smooth; }
@@ -184,5 +71,16 @@ h1, h2, h3, h4 {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
 
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); }
+
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Reduce motion */
+[data-reduce-motion="true"] *,
+[data-reduce-motion="true"] *::before,
+[data-reduce-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}

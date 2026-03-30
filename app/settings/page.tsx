@@ -10,7 +10,7 @@ import Image                            from 'next/image'
 type DesktopTab = 'profile' | 'security' | 'notifications' | 'identity' | 'billing' | 'integrations'
 type MobilePage = 'main' | 'edit-profile' | 'security' | 'privacy' | 'notifications' | 'billing' | 'platforms' | 'feedback' | 'permanent-record' | 'change-email' | 'change-password'
 
-// ─── Theme helpers ────────────────────────────────────────────────────────────
+// ─── Theme / motion helpers ───────────────────────────────────────────────────
 function getTheme(): 'dark' | 'light' {
   if (typeof window === 'undefined') return 'dark'
   return (localStorage.getItem('candoxa_theme') as 'dark' | 'light') || 'dark'
@@ -20,8 +20,17 @@ function applyTheme(theme: 'dark' | 'light') {
   document.documentElement.setAttribute('data-theme', theme)
   localStorage.setItem('candoxa_theme', theme)
 }
+function getReduceMotion(): boolean {
+  if (typeof window === 'undefined') return false
+  return localStorage.getItem('candoxa_reduce_motion') === 'true'
+}
+function applyReduceMotion(on: boolean) {
+  if (typeof document === 'undefined') return
+  document.documentElement.setAttribute('data-reduce-motion', String(on))
+  localStorage.setItem('candoxa_reduce_motion', String(on))
+}
 
-// ─── Small shared components ──────────────────────────────────────────────────
+// ─── Shared components ────────────────────────────────────────────────────────
 function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
     <button onClick={() => onChange(!on)}
@@ -109,6 +118,16 @@ function InputField({ label, value, onChange, type = 'text', placeholder, disabl
   )
 }
 
+// ─── Notification items ────────────────────────────────────────────────────────
+const NOTIF_ITEMS = [
+  { key: 'new_tracker',     label: 'New Tracker',                desc: 'Someone started tracking your profile.' },
+  { key: 'entry_secured',   label: 'Entry Secured Confirmation', desc: 'Email confirmation each time an entry is anchored.' },
+  { key: 'milestone',       label: 'Milestone Unlocked',         desc: 'Notify when you reach a new milestone or badge.' },
+  { key: 'referral',        label: 'Referral Joined',            desc: 'A creator you referred has joined Candoxa.' },
+  { key: 'weekly_digest',   label: 'Weekly Digest',              desc: 'A weekly summary of your growth and activity.' },
+  { key: 'product_updates', label: 'Product Updates',            desc: 'New features and announcements from Candoxa.' },
+]
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const router  = useRouter()
@@ -118,27 +137,26 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
-  const [mobilePage,  setMobilePage]  = useState<MobilePage>('main')
-  const [desktopTab,  setDesktopTab]  = useState<DesktopTab>('profile')
+  const [mobilePage, setMobilePage] = useState<MobilePage>('main')
+  const [desktopTab, setDesktopTab] = useState<DesktopTab>('profile')
 
   // Profile
-  const [displayName, setDisplayName] = useState('')
-  const [bio,         setBio]         = useState('')
-  const [locationVal, setLocationVal] = useState('')
-  const [avatarUrl,   setAvatarUrl]   = useState<string | null>(null)
-  const [avatarFile,  setAvatarFile]  = useState<File | null>(null)
-  const [saving,      setSaving]      = useState(false)
+  const [displayName,  setDisplayName]  = useState('')
+  const [bio,          setBio]          = useState('')
+  const [locationVal,  setLocationVal]  = useState('')
+  const [avatarUrl,    setAvatarUrl]    = useState<string | null>(null)
+  const [avatarFile,   setAvatarFile]   = useState<File | null>(null)
+  const [saving,       setSaving]       = useState(false)
   const [profileSaved, setProfileSaved] = useState(false)
 
   // Security
-  const [newEmail,       setNewEmail]       = useState('')
-  const [emailMsg,       setEmailMsg]       = useState('')
-  const [currentPwd,     setCurrentPwd]     = useState('')
-  const [newPwd,         setNewPwd]         = useState('')
-  const [confirmPwd,     setConfirmPwd]     = useState('')
-  const [pwdMsg,         setPwdMsg]         = useState('')
-  const [twoFA,          setTwoFA]          = useState(false)
-  const [sessions,       setSessions]       = useState<any[]>([])
+  const [newEmail,   setNewEmail]   = useState('')
+  const [emailMsg,   setEmailMsg]   = useState('')
+  const [newPwd,     setNewPwd]     = useState('')
+  const [confirmPwd, setConfirmPwd] = useState('')
+  const [pwdMsg,     setPwdMsg]     = useState('')
+  const [twoFA,      setTwoFA]      = useState(false)
+  const [sessions,   setSessions]   = useState<any[]>([])
 
   // Notifications
   const [notifs, setNotifs] = useState({
@@ -171,7 +189,15 @@ export default function SettingsPage() {
   })
 
   useEffect(() => {
-    setTheme(getTheme())
+    // Apply saved theme + motion on mount
+    const savedTheme = getTheme()
+    setTheme(savedTheme)
+    applyTheme(savedTheme)
+
+    const savedMotion = getReduceMotion()
+    setReduceMotion(savedMotion)
+    applyReduceMotion(savedMotion)
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { router.push('/onboarding'); return }
       setUser(session.user)
@@ -182,6 +208,7 @@ export default function SettingsPage() {
         setBio(p.bio || '')
         setLocationVal(p.location || '')
         setAvatarUrl(p.avatar_url || null)
+        setTwoFA(p.two_fa_enabled || false)
         if (p.notification_prefs) setNotifs(prev => ({ ...prev, ...p.notification_prefs }))
         if (p.identity_prefs)     setPrivacy(prev => ({ ...prev, ...p.identity_prefs }))
         if (p.integrations)       setIntegrations(p.integrations)
@@ -203,6 +230,7 @@ export default function SettingsPage() {
     })
   }, [])
 
+  // ─── Actions ────────────────────────────────────────────────────────────────
   const saveProfile = async () => {
     if (!profile) return
     setSaving(true)
@@ -237,13 +265,22 @@ export default function SettingsPage() {
     if (newPwd.length < 6) { setPwdMsg('Password must be at least 6 characters'); return }
     const { error } = await supabase.auth.updateUser({ password: newPwd })
     if (error) setPwdMsg('Error: ' + error.message)
-    else { setPwdMsg('Password updated successfully'); setCurrentPwd(''); setNewPwd(''); setConfirmPwd('') }
+    else { setPwdMsg('Password updated successfully'); setNewPwd(''); setConfirmPwd('') }
     setTimeout(() => setPwdMsg(''), 3000)
+  }
+
+  const save2FA = async (val: boolean) => {
+    setTwoFA(val)
+    if (profile) await supabase.from('users').update({ two_fa_enabled: val }).eq('id', profile.id)
   }
 
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark'
     setTheme(next); applyTheme(next)
+  }
+
+  const toggleReduceMotion = (val: boolean) => {
+    setReduceMotion(val); applyReduceMotion(val)
   }
 
   const savePrivacyUpdate = async (updated: typeof privacy) => {
@@ -256,7 +293,12 @@ export default function SettingsPage() {
     await supabase.from('users').update({ notification_prefs: updated }).eq('id', profile?.id)
   }
 
-  const handleLogout = async () => { await supabase.auth.signOut(); router.push('/onboarding') }
+  const saveIntegrations = async (updated: Record<string, boolean>) => {
+    setIntegrations(updated)
+    await supabase.from('users').update({ integrations: updated }).eq('id', profile?.id)
+  }
+
+  const handleLogout     = async () => { await supabase.auth.signOut(); router.push('/onboarding') }
   const handleDeactivate = async () => {
     if (!profile) return
     await supabase.from('users').update({ is_active: false }).eq('id', profile.id)
@@ -286,18 +328,8 @@ export default function SettingsPage() {
     </div>
   )
 
-  // ─── Shared notification items list ──────────────────────────────────────────
-  const NOTIF_ITEMS = [
-    { key: 'new_tracker',     label: 'New Tracker',                desc: 'Someone started tracking your profile.' },
-    { key: 'entry_secured',   label: 'Entry Secured Confirmation', desc: 'Email confirmation each time an entry is anchored.' },
-    { key: 'milestone',       label: 'Milestone Unlocked',         desc: 'Notify when you reach a new milestone or badge.' },
-    { key: 'referral',        label: 'Referral Joined',            desc: 'A creator you referred has joined Candoxa.' },
-    { key: 'weekly_digest',   label: 'Weekly Digest',              desc: 'A weekly summary of your growth and activity.' },
-    { key: 'product_updates', label: 'Product Updates',            desc: 'New features and announcements from Candoxa.' },
-  ]
-
   // ════════════════════════════════════════════════════════════
-  //  MOBILE sub-pages
+  //  MOBILE SUB-PAGES
   // ════════════════════════════════════════════════════════════
 
   const MobileEditProfile = () => (
@@ -377,9 +409,7 @@ export default function SettingsPage() {
             className="w-full bg-transparent text-white/80 text-[14px] outline-none placeholder-white/25" />
         </div>
       </div>
-      {emailMsg && (
-        <p className={`text-[12px] mb-4 ${emailMsg.startsWith('Error') ? 'text-red-400' : 'text-green-400'}`}>{emailMsg}</p>
-      )}
+      {emailMsg && <p className={`text-[12px] mb-4 ${emailMsg.startsWith('Error') ? 'text-red-400' : 'text-green-400'}`}>{emailMsg}</p>}
       <button onClick={updateEmail} disabled={!newEmail.trim()}
         className="w-full py-4 rounded-xl text-white text-[14px] font-semibold disabled:opacity-40"
         style={{ background:'#0038FF' }}>
@@ -392,7 +422,7 @@ export default function SettingsPage() {
     <div className="flex flex-col">
       <BackButton onBack={() => setMobilePage('security')} title="Change Password" />
       <p className="text-white/40 text-[13px] mb-5 leading-relaxed">
-        Use a strong password with at least 8 characters including numbers and symbols.
+        Use a strong password with at least 6 characters including numbers and symbols.
       </p>
       <div className="bg-[#0A0A0F] border border-white/[0.08] rounded-2xl overflow-hidden divide-y divide-white/[0.06] mb-5">
         <div className="px-4 py-3.5">
@@ -408,9 +438,7 @@ export default function SettingsPage() {
             className="w-full bg-transparent text-white/80 text-[14px] outline-none placeholder-white/25" />
         </div>
       </div>
-      {pwdMsg && (
-        <p className={`text-[12px] mb-4 ${pwdMsg.startsWith('Error') || pwdMsg.includes('match') || pwdMsg.includes('least') ? 'text-red-400' : 'text-green-400'}`}>{pwdMsg}</p>
-      )}
+      {pwdMsg && <p className={`text-[12px] mb-4 ${pwdMsg.startsWith('Error') || pwdMsg.includes('match') || pwdMsg.includes('least') ? 'text-red-400' : 'text-green-400'}`}>{pwdMsg}</p>}
       <button onClick={updatePassword} disabled={!newPwd || !confirmPwd}
         className="w-full py-4 rounded-xl text-white text-[14px] font-semibold disabled:opacity-40"
         style={{ background:'#0038FF' }}>
@@ -425,17 +453,14 @@ export default function SettingsPage() {
       <SectionGroup title="Authentication">
         <SettingsRow
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.6" strokeLinecap="round" className="w-4 h-4"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>}
-          label="Change Email" sub={user?.email} onPress={() => setMobilePage('change-email')}
-        />
+          label="Change Email" sub={user?.email} onPress={() => setMobilePage('change-email')} />
         <SettingsRow
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.6" strokeLinecap="round" className="w-4 h-4"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>}
-          label="Change Password" onPress={() => setMobilePage('change-password')}
-        />
+          label="Change Password" onPress={() => setMobilePage('change-password')} />
         <SettingsRow
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.6" strokeLinecap="round" className="w-4 h-4"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18" strokeWidth="2"/></svg>}
-          label="Two-Factor Authentication" sub="Protect your account with 2FA"
-          toggle toggleOn={twoFA} onToggle={setTwoFA}
-        />
+          label="Two-Factor Authentication" sub={twoFA ? "2FA is enabled on your account" : "Protect your account with 2FA"}
+          toggle toggleOn={twoFA} onToggle={save2FA} />
       </SectionGroup>
       <p className="text-white/40 text-[12px] font-semibold uppercase tracking-[0.10em] px-1 mb-2">Active Sessions</p>
       <div className="bg-[#0A0A0F] border border-white/[0.08] rounded-2xl overflow-hidden divide-y divide-white/[0.06]">
@@ -453,7 +478,6 @@ export default function SettingsPage() {
                 <p className="text-white/80 text-[13px] font-medium">{s.device_name}</p>
                 <p className="text-white/35 text-[11px]">{s.location || 'Unknown'} · {new Date(s.last_active).toLocaleDateString('en-US', { month:'short', day:'numeric' })}</p>
               </div>
-              {/* Fixed: first session = This Device, rest = Other */}
               <span className="text-[11px] font-semibold" style={{ color: i === 0 ? '#4ade80' : '#f87171' }}>
                 {i === 0 ? 'This Device' : 'Other'}
               </span>
@@ -501,14 +525,12 @@ export default function SettingsPage() {
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.6" strokeLinecap="round" className="w-4 h-4"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
           label="Show in Discover" sub="Appear on the public Discover feed"
           toggle toggleOn={privacy.show_in_discover}
-          onToggle={(v) => savePrivacyUpdate({ ...privacy, show_in_discover: v })}
-        />
+          onToggle={(v) => savePrivacyUpdate({ ...privacy, show_in_discover: v })} />
         <SettingsRow
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.6" strokeLinecap="round" className="w-4 h-4"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>}
           label="Allow Tracking" sub="Let others track your profile"
           toggle toggleOn={privacy.allow_tracking}
-          onToggle={(v) => savePrivacyUpdate({ ...privacy, allow_tracking: v })}
-        />
+          onToggle={(v) => savePrivacyUpdate({ ...privacy, allow_tracking: v })} />
       </div>
     </div>
   )
@@ -516,9 +538,7 @@ export default function SettingsPage() {
   const MobilePlatforms = () => (
     <div className="flex flex-col">
       <BackButton onBack={() => setMobilePage('main')} title="Connected Platforms" />
-      <p className="text-white/40 text-[13px] mb-5 leading-relaxed">
-        Connect platforms to auto-fill content URLs when securing entries.
-      </p>
+      <p className="text-white/40 text-[13px] mb-5 leading-relaxed">Connect platforms to auto-fill content URLs when securing entries.</p>
       <div className="bg-[#0A0A0F] border border-white/[0.08] rounded-2xl overflow-hidden divide-y divide-white/[0.06]">
         {Object.entries(integrations).map(([platform, connected]) => (
           <div key={platform} className="flex items-center gap-3 px-4 py-3.5">
@@ -534,12 +554,7 @@ export default function SettingsPage() {
                 {connected ? 'Connected' : 'Not connected'}
               </p>
             </div>
-            <button
-              onClick={() => {
-                const u = { ...integrations, [platform]: !connected }
-                setIntegrations(u)
-                supabase.from('users').update({ integrations: u }).eq('id', profile?.id)
-              }}
+            <button onClick={() => saveIntegrations({ ...integrations, [platform]: !connected })}
               className="px-3 py-1.5 rounded-lg border text-[12px] font-medium transition-colors"
               style={connected
                 ? { borderColor:'rgba(239,68,68,0.3)', color:'rgba(239,68,68,0.7)' }
@@ -558,28 +573,30 @@ export default function SettingsPage() {
       <BackButton onBack={() => setMobilePage('main')} title="Plan & Billing" />
       <div className="bg-[#0A0A0F] border border-white/[0.08] rounded-2xl p-4 mb-4">
         <div className="flex items-center justify-between mb-1">
-          <p className="text-white font-semibold text-[15px]">Free Plan</p>
+          <p className="text-white font-semibold text-[15px]">{profile?.plan === 'pro' ? 'Pro Plan' : 'Free Plan'}</p>
           <span className="px-3 py-1 rounded-full bg-blue-600/20 border border-blue-500/30 text-blue-300 text-[11px] font-semibold">Current</span>
         </div>
-        <p className="text-white/35 text-[12px]">10 daily secures · Public profile · Basic identity features</p>
+        <p className="text-white/35 text-[12px]">{profile?.plan === 'pro' ? 'Unlimited secures · All features' : '10 daily secures · Public profile · Basic features'}</p>
       </div>
-      <div className="bg-[#0A0A0F] border border-blue-500/30 rounded-2xl overflow-hidden mb-5">
-        <div className="px-4 py-4 border-b border-white/[0.07] flex items-center justify-between">
-          <div>
-            <p className="text-white font-semibold text-[15px]">Pro Plan</p>
-            <p className="text-white/35 text-[12px]">Everything in Free, plus advanced features.</p>
+      {profile?.plan !== 'pro' && (
+        <div className="bg-[#0A0A0F] border border-blue-500/30 rounded-2xl overflow-hidden mb-5">
+          <div className="px-4 py-4 border-b border-white/[0.07] flex items-center justify-between">
+            <div>
+              <p className="text-white font-semibold text-[15px]">Pro Plan</p>
+              <p className="text-white/35 text-[12px]">Everything in Free, plus advanced features.</p>
+            </div>
+            <span className="text-white font-bold text-[15px]">$9/mo</span>
           </div>
-          <span className="text-white font-bold text-[15px]">$9/mo</span>
+          {['Unlimited daily secures', 'Priority verification', 'Advanced analytics', 'Custom profile badge'].map((f) => (
+            <div key={f} className="px-4 py-3 border-b border-white/[0.06] last:border-0 flex items-center gap-2.5">
+              <span className="text-green-400 text-[12px]">✓</span>
+              <p className="text-white/70 text-[13px]">{f}</p>
+            </div>
+          ))}
         </div>
-        {['Unlimited daily secures', 'Priority verification', 'Advanced analytics', 'Custom profile badge'].map((f) => (
-          <div key={f} className="px-4 py-3 border-b border-white/[0.06] last:border-0 flex items-center gap-2.5">
-            <span className="text-green-400 text-[12px]">✓</span>
-            <p className="text-white/70 text-[13px]">{f}</p>
-          </div>
-        ))}
-      </div>
+      )}
       <button className="w-full py-4 rounded-xl text-white text-[14px] font-semibold" style={{ background:'#0038FF' }}>
-        Upgrade to Pro
+        {profile?.plan === 'pro' ? 'Manage Subscription' : 'Upgrade to Pro'}
       </button>
     </div>
   )
@@ -591,10 +608,10 @@ export default function SettingsPage() {
         <p className="text-white/45 text-[11px] font-semibold uppercase tracking-[0.10em] mb-3">Record Summary</p>
         <div className="grid grid-cols-2 gap-3">
           {[
-            { label: 'Total Entries', val: String(profile?.entry_count || 0) },
-            { label: 'Profile Strength', val: String(profile?.profile_strength || 0) + 'pts' },
-            { label: 'Member Since', val: profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—' },
-            { label: 'Visibility', val: privacy.is_public ? 'Public' : 'Private' },
+            { label:'Total Entries',    val: String(profile?.entry_count || 0) },
+            { label:'Profile Strength', val: String(profile?.profile_strength || 0) + 'pts' },
+            { label:'Member Since',     val: profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US',{month:'short',year:'numeric'}) : '—' },
+            { label:'Visibility',       val: privacy.is_public ? 'Public' : 'Private' },
           ].map(s => (
             <div key={s.label} className="bg-white/[0.03] rounded-xl px-3 py-3">
               <p className="text-white/35 text-[10px] mb-1">{s.label}</p>
@@ -619,11 +636,10 @@ export default function SettingsPage() {
   const MobileFeedback = () => (
     <div className="flex flex-col">
       <BackButton onBack={() => setMobilePage('main')} title="Send Feedback" />
-      <p className="text-white/40 text-[13px] mb-5 leading-relaxed">Tell us what's working, what's broken, or what you'd love to see on Candoxa.</p>
+      <p className="text-white/40 text-[13px] mb-5 leading-relaxed">Tell us what's working, what's broken, or what you'd love to see.</p>
       <textarea value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} rows={6}
         placeholder="Your feedback..."
-        className="w-full bg-[#0A0A0F] border border-white/[0.10] rounded-2xl px-4 py-4 text-white/75 text-[14px] outline-none resize-none placeholder-white/25 leading-relaxed mb-5 focus:border-white/20"
-      />
+        className="w-full bg-[#0A0A0F] border border-white/[0.10] rounded-2xl px-4 py-4 text-white/75 text-[14px] outline-none resize-none placeholder-white/25 leading-relaxed mb-5 focus:border-white/20" />
       <div className="flex gap-3">
         <button onClick={() => setMobilePage('main')}
           className="flex-1 py-3.5 rounded-xl border border-white/[0.12] text-white/60 text-[14px] font-semibold">Cancel</button>
@@ -680,7 +696,7 @@ export default function SettingsPage() {
           value={privacy.is_public ? 'Public' : 'Private'} onPress={() => setMobilePage('privacy')} />
         <SettingsRow icon={<svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.6" strokeLinecap="round" className="w-4 h-4"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>}
           label="My Permanent Record" sub="All secured entries · All indelible"
-          value="Public" onPress={() => setMobilePage('permanent-record')} />
+          onPress={() => setMobilePage('permanent-record')} />
       </SectionGroup>
 
       <SectionGroup title="Notifications">
@@ -707,7 +723,8 @@ export default function SettingsPage() {
           label="Theme" sub={theme === 'dark' ? 'Dark mode active' : 'Light mode active'}
           value={theme === 'dark' ? 'Dark' : 'Light'} onPress={toggleTheme} />
         <SettingsRow icon={<svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.6" strokeLinecap="round" className="w-4 h-4"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>}
-          label="Reduce Motion" toggle toggleOn={reduceMotion} onToggle={setReduceMotion} />
+          label="Reduce Motion" sub="Disable animations across the app"
+          toggle toggleOn={reduceMotion} onToggle={toggleReduceMotion} />
       </SectionGroup>
 
       <SectionGroup title="Support">
@@ -741,7 +758,7 @@ export default function SettingsPage() {
   )
 
   // ════════════════════════════════════════════════════════════
-  // RENDER
+  //  RENDER
   // ════════════════════════════════════════════════════════════
   return (
     <DashboardLayout user={user}>
@@ -767,8 +784,7 @@ export default function SettingsPage() {
                   icon={<svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.6" strokeLinecap="round" className="w-4 h-4"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>}
                   label={item.label} sub={item.desc}
                   toggle toggleOn={notifs[item.key as keyof typeof notifs] as boolean}
-                  onToggle={(v) => saveNotifs({ ...notifs, [item.key]: v })}
-                />
+                  onToggle={(v) => saveNotifs({ ...notifs, [item.key]: v })} />
               ))}
             </div>
           </div>
@@ -802,7 +818,6 @@ export default function SettingsPage() {
 
           <div className="flex-1 min-w-0 border border-white/[0.10] bg-[#0A0A0F] rounded-2xl p-6">
 
-            {/* Profile tab */}
             {desktopTab === 'profile' && (
               <div>
                 <div className="flex items-center justify-between pb-4 border-b border-white/[0.07] mb-5">
@@ -847,10 +862,8 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* Security tab */}
             {desktopTab === 'security' && (
               <div className="space-y-7">
-                {/* Change Email */}
                 <div>
                   <p className="text-white font-semibold text-[15px] pb-4 border-b border-white/[0.07] mb-5">Email Address</p>
                   <InputField label="Current Email" value={user?.email || ''} disabled />
@@ -861,8 +874,6 @@ export default function SettingsPage() {
                     Send Confirmation
                   </button>
                 </div>
-
-                {/* Change Password */}
                 <div>
                   <p className="text-white font-semibold text-[15px] pb-4 border-b border-white/[0.07] mb-5">Change Password</p>
                   <InputField label="New Password" value={newPwd} onChange={setNewPwd} type="password" placeholder="••••••••" />
@@ -873,8 +884,16 @@ export default function SettingsPage() {
                     Update Password
                   </button>
                 </div>
-
-                {/* Active Sessions */}
+                <div>
+                  <p className="text-white font-semibold text-[15px] pb-4 border-b border-white/[0.07] mb-5">Two-Factor Authentication</p>
+                  <div className="flex items-center justify-between border border-white/[0.08] rounded-xl px-4 py-3.5">
+                    <div>
+                      <p className="text-white/80 text-[13px] font-medium">2FA Status</p>
+                      <p className="text-white/35 text-[11px] mt-0.5">{twoFA ? 'Two-factor authentication is enabled' : 'Add an extra layer of security to your account'}</p>
+                    </div>
+                    <Toggle on={twoFA} onChange={save2FA} />
+                  </div>
+                </div>
                 <div>
                   <p className="text-white font-semibold text-[15px] pb-4 border-b border-white/[0.07] mb-5">Active Sessions</p>
                   <div className="space-y-3">
@@ -902,7 +921,6 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* Notifications tab */}
             {desktopTab === 'notifications' && (
               <div>
                 <div className="pb-4 border-b border-white/[0.07] mb-5">
@@ -921,8 +939,8 @@ export default function SettingsPage() {
                 ))}
                 <div className="pt-4 border-t border-white/[0.07] mt-2 space-y-4">
                   {[
-                    { key: 'push',  label: 'Push Notifications',  desc: 'Real-time alerts on your device.' },
-                    { key: 'email', label: 'Email Notifications',  desc: 'Receive updates via email.' },
+                    { key:'push',  label:'Push Notifications', desc:'Real-time alerts on your device.' },
+                    { key:'email', label:'Email Notifications', desc:'Receive updates via email.' },
                   ].map(item => (
                     <div key={item.key} className="flex items-center justify-between">
                       <div>
@@ -937,7 +955,6 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* Identity tab */}
             {desktopTab === 'identity' && (
               <div>
                 <div className="pb-4 border-b border-white/[0.07] mb-5">
@@ -945,9 +962,9 @@ export default function SettingsPage() {
                   <p className="text-white/35 text-[12px] mt-0.5">Control how your profile appears on Candoxa.</p>
                 </div>
                 {[
-                  { key: 'is_public',        label: 'Public Profile',   desc: `Anyone can view your profile at candoxa.com/@${profile?.username||'you'}` },
-                  { key: 'show_in_discover', label: 'Show in Discover', desc: 'Your profile appears in the Discover directory.' },
-                  { key: 'allow_tracking',   label: 'Allow Tracking',   desc: 'Other creators can track your profile activity.' },
+                  { key:'is_public',        label:'Public Profile',   desc:`Anyone can view your profile at candoxa.com/@${profile?.username||'you'}` },
+                  { key:'show_in_discover', label:'Show in Discover', desc:'Your profile appears in the Discover directory.' },
+                  { key:'allow_tracking',   label:'Allow Tracking',   desc:'Other creators can track your profile activity.' },
                 ].map((item) => (
                   <div key={item.key} className="flex items-center justify-between py-4 border-b border-white/[0.06] last:border-0">
                     <div>
@@ -958,8 +975,6 @@ export default function SettingsPage() {
                       onChange={(v) => savePrivacyUpdate({ ...privacy, [item.key]: v })} />
                   </div>
                 ))}
-
-                {/* Theme on desktop */}
                 <div className="flex items-center justify-between py-4 border-t border-white/[0.07] mt-2">
                   <div>
                     <p className="text-white/80 text-[13px] font-medium">Theme</p>
@@ -970,10 +985,16 @@ export default function SettingsPage() {
                     Switch to {theme === 'dark' ? 'Light' : 'Dark'}
                   </button>
                 </div>
+                <div className="flex items-center justify-between py-4 border-t border-white/[0.06]">
+                  <div>
+                    <p className="text-white/80 text-[13px] font-medium">Reduce Motion</p>
+                    <p className="text-white/35 text-[11px] mt-0.5">Disable animations across the app.</p>
+                  </div>
+                  <Toggle on={reduceMotion} onChange={toggleReduceMotion} />
+                </div>
               </div>
             )}
 
-            {/* Billing tab */}
             {desktopTab === 'billing' && (
               <div>
                 <p className="text-white font-semibold text-[15px] pb-4 border-b border-white/[0.07] mb-5">Plan & Billing</p>
@@ -993,7 +1014,7 @@ export default function SettingsPage() {
                       </div>
                       <span className="text-white/50 text-[13px] font-semibold">$9/mo</span>
                     </div>
-                    {['Unlimited daily secures', 'Priority verification', 'Advanced analytics', 'Custom profile badge'].map((f) => (
+                    {['Unlimited daily secures','Priority verification','Advanced analytics','Custom profile badge'].map((f) => (
                       <div key={f} className="px-4 py-3.5 border-b border-white/[0.07] last:border-0 flex items-center gap-2">
                         <span className="text-green-400 text-[12px]">✓</span>
                         <p className="text-white/75 text-[13px]">{f}</p>
@@ -1007,7 +1028,6 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* Integrations tab */}
             {desktopTab === 'integrations' && (
               <div>
                 <div className="pb-4 border-b border-white/[0.07] mb-5">
@@ -1020,8 +1040,7 @@ export default function SettingsPage() {
                       <p className="text-white/80 text-[13px] font-medium">{platform}</p>
                       <p className={`text-[11px] mt-0.5 ${connected ? 'text-green-400' : 'text-white/30'}`}>{connected ? 'Connected' : 'Not connected'}</p>
                     </div>
-                    <button
-                      onClick={() => { const u = { ...integrations, [platform]: !connected }; setIntegrations(u); supabase.from('users').update({ integrations: u }).eq('id', profile?.id) }}
+                    <button onClick={() => saveIntegrations({ ...integrations, [platform]: !connected })}
                       className="px-4 py-2 rounded-xl border border-white/[0.12] text-white/55 text-[12px] font-semibold hover:bg-white/[0.04] transition-colors">
                       {connected ? 'Disconnect' : 'Connect'}
                     </button>
@@ -1032,7 +1051,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Danger zone - desktop */}
+        {/* Danger zone */}
         <div className="mt-5 border border-red-500/20 bg-[#0A0A0F] rounded-2xl p-5">
           <p className="text-red-400 font-semibold text-[14px] mb-4">Danger Zone</p>
           <div className="flex items-center gap-3 flex-wrap">
@@ -1071,7 +1090,7 @@ export default function SettingsPage() {
 
       <ConfirmSheet open={showDeactivate} onClose={() => setShowDeactivate(false)}>
         <p className="text-white font-bold text-[17px] mb-2">Deactivate Account?</p>
-        <p className="text-white/40 text-[13px] leading-relaxed mb-6">Your profile will be hidden from Discover and search. Your secured entries remain intact. You can reactivate at any time by logging back in.</p>
+        <p className="text-white/40 text-[13px] leading-relaxed mb-6">Your profile will be hidden. Your secured entries remain intact. You can reactivate at any time by logging back in.</p>
         <div className="flex gap-3">
           <button onClick={() => setShowDeactivate(false)} className="flex-1 py-3.5 rounded-xl border border-white/[0.12] text-white/70 text-[14px] font-semibold">Cancel</button>
           <button onClick={handleDeactivate} className="flex-1 py-3.5 rounded-xl text-white text-[14px] font-semibold bg-red-500">Deactivate</button>
@@ -1091,8 +1110,7 @@ export default function SettingsPage() {
         </div>
         <input value={deleteConfirm} onChange={(e) => setDeleteConfirm(e.target.value)}
           placeholder="TYPE 'DELETE' to confirm"
-          className="w-full bg-white/[0.05] border border-white/[0.12] rounded-xl px-4 py-3.5 text-white/80 text-[14px] outline-none mb-4 placeholder-white/25 focus:border-red-500/50"
-        />
+          className="w-full bg-white/[0.05] border border-white/[0.12] rounded-xl px-4 py-3.5 text-white/80 text-[14px] outline-none mb-4 placeholder-white/25 focus:border-red-500/50" />
         <div className="flex gap-3">
           <button onClick={() => { setShowDelete(false); setDeleteConfirm('') }} className="flex-1 py-3.5 rounded-xl border border-white/[0.12] text-white/70 text-[14px] font-semibold">Cancel</button>
           <button onClick={handleDelete} disabled={deleteConfirm !== 'DELETE'} className="flex-1 py-3.5 rounded-xl text-white text-[14px] font-semibold disabled:opacity-40 bg-red-500">Delete</button>
