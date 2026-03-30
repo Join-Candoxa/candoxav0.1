@@ -26,7 +26,6 @@ export default function StepFirstRecord({ data, setData, onNext, onBack }: Props
   const [skipping,    setSkipping]    = useState(false)
   const [error,       setError]       = useState('')
 
-  // Read ?code= from URL — present when user came via referral invite link
   const inviteCode = searchParams.get('code') || data.inviteCode || ''
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -37,14 +36,16 @@ export default function StepFirstRecord({ data, setData, onNext, onBack }: Props
   }
 
   const ensureUserRow = async (session: any) => {
+    // Use ?? to guard against undefined email
+    const email = (session.user.email as string | undefined) ?? session.user.id
     const { data: existing } = await supabase
-      .from('users').select('id').eq('email', session.user.email).single()
+      .from('users').select('id').eq('email', email).single()
     if (existing) return existing.id
 
     const { data: newRow, error } = await supabase.from('users').insert({
       id:               session.user.id,
-      email:            session.user.email,
-      username:         data.username || session.user.email.split('@')[0],
+      email:            email,
+      username:         data.username || email.split('@')[0],
       bio:              data.bio || null,
       profile_strength: 0,
       plan:             'free',
@@ -56,7 +57,6 @@ export default function StepFirstRecord({ data, setData, onNext, onBack }: Props
     return newRow?.id
   }
 
-  // Mark invite code as pending after user registers
   const markInviteCode = async (userId: string, username: string) => {
     if (!inviteCode) return
 
@@ -66,7 +66,7 @@ export default function StepFirstRecord({ data, setData, onNext, onBack }: Props
       .eq('status', 'available')
       .single()
 
-    if (!codeRow) return // already used or invalid
+    if (!codeRow) return
 
     await supabase.from('invite_codes').update({
       status:           'pending',
@@ -82,9 +82,13 @@ export default function StepFirstRecord({ data, setData, onNext, onBack }: Props
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { setSkipping(false); return }
-      const userId = await ensureUserRow(session)
+
+      const email    = (session.user.email as string | undefined) ?? session.user.id
+      const userId   = await ensureUserRow(session)
+      const username = data.username || email.split('@')[0]
+
       if (userId) {
-        await markInviteCode(userId, data.username || session.user.email.split('@')[0])
+        await markInviteCode(userId, username)
         await supabase.from('notifications').insert({
           user_id:    userId,
           type:       'reminder',
@@ -106,11 +110,13 @@ export default function StepFirstRecord({ data, setData, onNext, onBack }: Props
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) { setError('Not authenticated'); setLoading(false); return }
 
+      const email    = (session.user.email as string | undefined) ?? session.user.id
+      const username = data.username || email.split('@')[0]
+
       const userId = await ensureUserRow(session)
       if (!userId) { setError('Profile not found. Please try again.'); setLoading(false); return }
 
-      // Mark invite code as pending
-      await markInviteCode(userId, data.username || session.user.email.split('@')[0])
+      await markInviteCode(userId, username)
 
       let screenshotUrl: string | null = null
       if (screenshot) {
@@ -210,13 +216,12 @@ export default function StepFirstRecord({ data, setData, onNext, onBack }: Props
         <button onClick={handleContinue} disabled={loading}
           className="w-full py-4 rounded-2xl text-white text-[15px] font-semibold disabled:opacity-40"
           style={{ background:'#0038FF' }}>
-          {loading
-            ? <span className="flex items-center justify-center gap-2">
-                <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin inline-block" />
-                Securing...
-              </span>
-            : 'Continue →'
-          }
+          {loading ? (
+            <span className="flex items-center justify-center gap-2">
+              <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin inline-block" />
+              Securing...
+            </span>
+          ) : 'Continue →'}
         </button>
         <button onClick={handleSkip} disabled={skipping}
           className="w-full text-center text-white/45 text-[14px] font-medium py-2">
