@@ -71,9 +71,19 @@ function OnboardingContent() {
     </div>
   )
 
-  if (step === 'loading') return (
-    <StepLoading onDone={() => setStep(2)} />
-  )
+if (step === 'loading') return (
+  <StepLoading onDone={async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) { setStep(2); return }
+    const { data: profile } = await supabase
+      .from('users').select('username').eq('email', session.user.email).single()
+    if (profile?.username) {
+      router.push('/dashboard')
+    } else {
+      setStep(2)
+    }
+  }} />
+)
 
   if (step === 'success' && secured) return (
     <SuccessScreen
