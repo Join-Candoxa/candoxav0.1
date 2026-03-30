@@ -2,14 +2,14 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase }  from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { OnboardingData } from '@/app/onboarding/page'
 
 type Props = {
   data:                OnboardingData
   setData:             (d: OnboardingData) => void
-  onNext:              () => void
-  onAlreadyRegistered: () => void
+  onNext:              () => void       // validated invite code — go to step 1 (new user)
+  onAlreadyRegistered: () => void       // skip straight to sign-in (existing user)
 }
 
 export default function StepInviteCode({ data, setData, onNext, onAlreadyRegistered }: Props) {
@@ -52,26 +52,37 @@ export default function StepInviteCode({ data, setData, onNext, onAlreadyRegiste
 
       <label className="text-white/70 text-[14px] font-medium mb-2">Access Code</label>
       <div className="relative mb-1">
-        <input type="text" value={code} onChange={(e) => handleChange(e.target.value)}
+        <input
+          type="text"
+          value={code}
+          onChange={(e) => handleChange(e.target.value)}
           placeholder="Enter your code"
           className="w-full bg-[#0A0A0F] border rounded-xl px-4 py-4 text-white text-[15px] outline-none transition-all pr-11 placeholder-white/25"
-          style={{ borderColor: error ? '#ef4444' : valid ? '#22c55e' : 'rgba(255,255,255,0.12)' }} />
+          style={{ borderColor: error ? '#ef4444' : valid ? '#22c55e' : 'rgba(255,255,255,0.12)' }}
+        />
         {valid && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-green-400 text-[18px]">✓</span>}
-        {checking && <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />}
+        {checking && (
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+        )}
       </div>
       {error && <p className="text-red-400 text-[12px] mb-2">{error}</p>}
 
-      <button onClick={onNext} disabled={!valid}
+      <button
+        onClick={onNext}
+        disabled={!valid}
         className="w-full py-4 rounded-xl text-white text-[15px] font-semibold mt-5 transition-all disabled:opacity-40"
-        style={{ background:'#0038FF' }}>
+        style={{ background: '#0038FF' }}
+      >
         Verify & Continue →
       </button>
 
-      {/* Already registered link — skips invite code, goes to sign in */}
-      <button onClick={onAlreadyRegistered}
-        className="w-full text-center py-3 mt-3 text-white/40 text-[13px] hover:text-white/60 transition-colors">
+      {/* Already registered — calls onAlreadyRegistered which goes to StepSignIn directly */}
+      <button
+        onClick={onAlreadyRegistered}
+        className="w-full text-center py-3 mt-3 text-white/40 text-[13px] hover:text-white/60 transition-colors"
+      >
         Already registered?{' '}
-        <span className="font-semibold" style={{ color:'#6B8AFF' }}>Sign in →</span>
+        <span className="font-semibold" style={{ color: '#6B8AFF' }}>Sign in →</span>
       </button>
 
       <div className="mt-6 flex flex-col gap-2.5">

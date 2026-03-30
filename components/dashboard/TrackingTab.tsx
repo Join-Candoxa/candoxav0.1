@@ -22,11 +22,7 @@ interface TrackingEntry {
   screenshot_url: string | null
   secured_at: string
   url: string | null
-  creator: {
-    id: string
-    username: string
-    avatar_url: string | null
-  }
+  creator: { id: string; username: string; avatar_url: string | null }
 }
 
 interface ActivityItem {
@@ -50,7 +46,7 @@ function shortDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function Avatar({ src, name, size = 'md' }: { src: string | null; name: string; size?: 'sm' | 'md' | 'lg' }) {
+function Avatar({ src, name, size = 'md' }: { src: string | null; name: string; size?: 'sm'|'md'|'lg' }) {
   const initials = (name || '?')[0].toUpperCase()
   const palette  = ['bg-blue-700','bg-purple-700','bg-green-700','bg-rose-700','bg-amber-700','bg-cyan-700']
   const color    = palette[initials.charCodeAt(0) % palette.length]
@@ -66,11 +62,8 @@ function Avatar({ src, name, size = 'md' }: { src: string | null; name: string; 
 function platformIcon(platform: string) {
   const p = (platform || '').toLowerCase().replace(/\s*\(.*?\)\s*/g, '').trim()
   const map: Record<string, string> = {
-    youtube:   '/icons/youtube.png',
-    instagram: '/icons/instagram.png',
-    twitter:   '/icons/x.png',
-    x:         '/icons/x.png',
-    linkedin:  '/icons/linkedin.png',
+    youtube: '/icons/youtube.png', instagram: '/icons/instagram.png',
+    twitter: '/icons/x.png', x: '/icons/x.png', linkedin: '/icons/linkedin.png',
   }
   return map[p] ?? '/icons/others.png'
 }
@@ -92,7 +85,6 @@ export default function TrackingTab({ profile }: { profile: any }) {
 
     const { data: trackingRows } = await supabase
       .from('trackers').select('tracked_id').eq('tracker_id', profile.id)
-
     const trackedIds = (trackingRows || []).map((r: any) => r.tracked_id)
 
     if (trackedIds.length === 0) {
@@ -110,13 +102,10 @@ export default function TrackingTab({ profile }: { profile: any }) {
       .limit(50)
 
     const countMap: Record<string, number> = {}
-    ;(allEntries || []).forEach((e: any) => {
-      countMap[e.user_id] = (countMap[e.user_id] || 0) + 1
-    })
-
     const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString()
     const newMap: Record<string, number> = {}
     ;(allEntries || []).forEach((e: any) => {
+      countMap[e.user_id] = (countMap[e.user_id] || 0) + 1
       if (e.secured_at > weekAgo) newMap[e.user_id] = (newMap[e.user_id] || 0) + 1
     })
 
@@ -152,27 +141,23 @@ export default function TrackingTab({ profile }: { profile: any }) {
     fetchAll()
   }
 
+  const goToProfile = (username: string) => router.push(`/${username}`)
+
   if (loading) return (
     <div className="flex items-center justify-center py-16">
       <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" />
     </div>
   )
 
-  // ─── Shared card style ───────────────────────────────────────────────────
-  const card = {
-    borderRadius: '14px',
-    padding: '16px',
-  }
+  const card = { borderRadius: '14px', padding: '16px' }
 
   return (
     <div className="flex gap-5">
 
-      {/* ══════════════════════════════════════════
-          LEFT FEED  (desktop)  /  FULL WIDTH (mobile)
-      ══════════════════════════════════════════ */}
+      {/* ── Main feed ── */}
       <div className="flex-1 min-w-0 flex flex-col gap-4">
 
-        {/* ── MOBILE-ONLY stacked sidebar cards ── */}
+        {/* ── MOBILE stacked cards ── */}
         <div className="md:hidden flex flex-col gap-3">
 
           {/* Creators You Track */}
@@ -180,21 +165,28 @@ export default function TrackingTab({ profile }: { profile: any }) {
             <p className="text-white/55 text-[11px] font-semibold tracking-[0.12em] uppercase mb-3">
               Creators You Track
             </p>
-
             {tracked.length === 0 ? (
               <p className="text-white/25 text-[12px] mb-3">You're not tracking anyone yet.</p>
             ) : (
               <div className="flex flex-col gap-3 mb-3">
                 {tracked.map((creator) => (
                   <div key={creator.id} className="flex items-center gap-2.5">
-                    <Avatar src={creator.avatar_url} name={creator.username} size="sm" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white/80 text-[13px] font-medium truncate">{creator.username}</p>
-                      <p className="text-white/30 text-[11px]">
-                        {creator.entry_count} {creator.entry_count === 1 ? 'entry' : 'entries'}
-                        {creator.new_count > 0 && <span className="text-blue-400 ml-1">· {creator.new_count} new</span>}
-                      </p>
-                    </div>
+                    {/* ── Clickable avatar + name ── */}
+                    <button
+                      onClick={() => goToProfile(creator.username)}
+                      className="flex items-center gap-2.5 flex-1 min-w-0 text-left"
+                    >
+                      <Avatar src={creator.avatar_url} name={creator.username} size="sm" />
+                      <div className="min-w-0">
+                        <p className="text-white/80 text-[13px] font-medium truncate hover:text-white transition-colors">
+                          @{creator.username}
+                        </p>
+                        <p className="text-white/30 text-[11px]">
+                          {creator.entry_count} {creator.entry_count === 1 ? 'entry' : 'entries'}
+                          {creator.new_count > 0 && <span className="text-blue-400 ml-1">· {creator.new_count} new</span>}
+                        </p>
+                      </div>
+                    </button>
                     <button
                       onClick={() => handleUntrack(creator.id)}
                       className="flex-shrink-0 text-[10px] font-medium px-2.5 py-1 rounded-lg border border-white/[0.10] text-white/35 hover:text-white/60 hover:border-white/20 transition-colors"
@@ -205,7 +197,6 @@ export default function TrackingTab({ profile }: { profile: any }) {
                 ))}
               </div>
             )}
-
             <button
               onClick={() => router.push('/discover')}
               className="w-full flex items-center justify-center gap-1.5 py-2.5 border border-white/[0.10] rounded-xl text-white/50 text-[13px] font-medium hover:text-white/70 hover:border-white/20 transition-colors"
@@ -224,18 +215,22 @@ export default function TrackingTab({ profile }: { profile: any }) {
             ) : (
               <div className="flex flex-col gap-3">
                 {activity.map((item) => (
-                  <div key={item.id} className="flex items-start gap-2.5">
+                  <button
+                    key={item.id}
+                    onClick={() => goToProfile(item.username)}
+                    className="flex items-start gap-2.5 text-left w-full"
+                  >
                     <Avatar src={item.avatar_url} name={item.username} size="sm" />
                     <div className="flex-1 min-w-0">
                       <p className="text-white/70 text-[12px] leading-tight">
-                        <span className="font-medium">@{item.username}</span>
+                        <span className="font-medium hover:text-white transition-colors">@{item.username}</span>
                         <span className="text-white/40"> secured a {item.platform} entry</span>
                       </p>
                       <p className="text-white/25 text-[10px] mt-0.5">
-                        {timeAgo(item.secured_at)} · {new Date(item.secured_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        {timeAgo(item.secured_at)} · {new Date(item.secured_at).toLocaleDateString('en-US', { month:'short', day:'numeric' })}
                       </p>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -243,27 +238,25 @@ export default function TrackingTab({ profile }: { profile: any }) {
 
           {/* Tip */}
           <div className="border border-white/[0.10] bg-[#0A0A0F]" style={card}>
-            <p className="text-[13px] font-bold mb-1" style={{ color: '#0038FF' }}>Tip</p>
+            <p className="text-[13px] font-bold mb-1" style={{ color:'#0038FF' }}>Tip</p>
             <p className="text-white font-semibold text-[14px] leading-tight mb-1.5">Track top builders</p>
             <p className="text-white/40 text-[12px] leading-relaxed mb-3">
               Tracking adds their new secured entries to this feed as they publish — with no algorithm.
             </p>
-            <button
-              onClick={() => router.push('/secured')}
-              className="text-white/45 text-[12px] hover:text-white/70 transition-colors"
-            >
-              Browse All Secured ↗
+            <button onClick={() => router.push('/discover')}
+              className="text-white/45 text-[12px] hover:text-white/70 transition-colors">
+              Browse Discover ↗
             </button>
           </div>
         </div>
 
-        {/* ── Tracked creator avatars row (desktop only) ── */}
+        {/* ── Desktop: creator avatar row ── */}
         {tracked.length > 0 && (
           <div className="hidden md:flex items-end gap-5 mb-2 flex-wrap">
             {tracked.map((creator) => (
               <button
                 key={creator.id}
-                onClick={() => router.push(`/${creator.username}`)}
+                onClick={() => goToProfile(creator.username)}
                 className="flex flex-col items-center gap-2 group"
               >
                 <div className="w-[72px] h-[72px] rounded-full overflow-hidden ring-2 ring-white/10 group-hover:ring-white/30 transition-all">
@@ -283,48 +276,51 @@ export default function TrackingTab({ profile }: { profile: any }) {
           </div>
         )}
 
-        {/* ── New Entries heading ── */}
+        {/* Desktop: section heading */}
         <div className="hidden md:flex items-center gap-4">
           <h2 className="text-white font-semibold text-[16px] flex-shrink-0">New Entries</h2>
           <div className="flex-1 h-[1px] bg-white/[0.08]" />
         </div>
 
-        {/* ── Empty state ── */}
+        {/* Desktop: empty state */}
         {entries.length === 0 && (
           <div className="hidden md:flex border border-white/[0.08] rounded-2xl p-12 flex-col items-center text-center">
             <p className="text-white/25 text-[13px] mb-3">No entries from creators you track yet.</p>
-            <button
-              onClick={() => router.push('/discover')}
+            <button onClick={() => router.push('/discover')}
               className="text-[13px] font-semibold px-5 py-2.5 rounded-full text-white"
-              style={{ background: '#0038FF' }}
-            >
+              style={{ background:'#0038FF' }}>
               Find Creators
             </button>
           </div>
         )}
 
-        {/* ── Entry cards (desktop only, mobile has no separate feed section) ── */}
+        {/* Desktop: entry cards */}
         <div className="hidden md:flex flex-col gap-5">
           {entries.map((entry) => (
-            <div
-              key={entry.id}
-              className="border border-white/[0.10] bg-[#0A0A0F]"
-              style={{ borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}
-            >
+            <div key={entry.id} className="border border-white/[0.10] bg-[#0A0A0F]"
+              style={{ borderRadius:'12px', padding:'20px', display:'flex', flexDirection:'column', gap:'16px' }}>
+
+              {/* Creator row — fully clickable */}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
+                <button
+                  onClick={() => goToProfile(entry.creator.username)}
+                  className="flex items-center gap-3 text-left group"
+                >
                   <Avatar src={entry.creator.avatar_url} name={entry.creator.username} size="md" />
                   <div>
-                    <p className="text-white font-semibold text-[13px]">@{entry.creator.username}</p>
+                    <p className="text-white font-semibold text-[13px] group-hover:text-blue-300 transition-colors">
+                      @{entry.creator.username}
+                    </p>
                     <p className="text-white/35 text-[11px]">{shortDate(entry.secured_at)}</p>
                   </div>
-                </div>
+                </button>
                 <span className="text-[11px] font-semibold px-3 py-1 rounded-full border"
-                  style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.65)' }}>
+                  style={{ background:'rgba(255,255,255,0.06)', borderColor:'rgba(255,255,255,0.12)', color:'rgba(255,255,255,0.65)' }}>
                   Tracking
                 </span>
               </div>
 
+              {/* Entry content */}
               <div className="flex items-start gap-3">
                 <div className="w-7 h-7 rounded-lg overflow-hidden flex-shrink-0 bg-white/[0.06] flex items-center justify-center mt-0.5">
                   <Image src={platformIcon(entry.platform)} alt={entry.platform} width={20} height={20} className="rounded-[3px]" />
@@ -339,19 +335,22 @@ export default function TrackingTab({ profile }: { profile: any }) {
 
               {entry.screenshot_url && (
                 <img src={entry.screenshot_url} alt="screenshot"
-                  style={{ width: '100%', height: '264px', borderRadius: '12px', objectFit: 'cover' }} />
+                  style={{ width:'100%', height:'264px', borderRadius:'12px', objectFit:'cover' }} />
               )}
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <span className="text-[11px] font-semibold px-3 py-1 rounded-full border"
-                    style={{ background: 'rgba(0,56,255,0.12)', borderColor: 'rgba(0,56,255,0.30)', color: '#6B8AFF', borderRadius: '300px' }}>
+                    style={{ background:'rgba(0,56,255,0.12)', borderColor:'rgba(0,56,255,0.30)', color:'#6B8AFF', borderRadius:'300px' }}>
                     Secured
                   </span>
                   <span className="text-white/25 text-[12px]">{shortDate(entry.secured_at)}</span>
                 </div>
-                <button onClick={() => router.push(`/${entry.creator.username}`)}
-                  className="text-white/40 text-[13px] hover:text-white transition-colors flex items-center gap-1">
+                {/* identify → opens original URL */}
+                <button
+                  onClick={() => entry.url && window.open(entry.url, '_blank', 'noopener,noreferrer')}
+                  className="text-white/40 text-[13px] hover:text-white transition-colors flex items-center gap-1"
+                >
                   identify →
                 </button>
               </div>
@@ -360,14 +359,12 @@ export default function TrackingTab({ profile }: { profile: any }) {
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════
-          RIGHT SIDEBAR — desktop only
-      ══════════════════════════════════════════ */}
-      <div className="hidden md:flex flex-shrink-0 flex-col gap-4" style={{ width: '320px' }}>
+      {/* ── Desktop right sidebar ── */}
+      <div className="hidden md:flex flex-shrink-0 flex-col gap-4" style={{ width:'320px' }}>
 
         {/* Creators You Track */}
         <div className="border border-white/[0.10] bg-[#0A0A0F] flex flex-col"
-          style={{ borderRadius: '16px', padding: '15px', gap: '12px' }}>
+          style={{ borderRadius:'16px', padding:'15px', gap:'12px' }}>
           <p className="text-white/55 text-[11px] font-semibold tracking-[0.12em] uppercase">Creators You Track</p>
           {tracked.length === 0 ? (
             <p className="text-white/20 text-[12px]">You're not tracking anyone yet.</p>
@@ -375,16 +372,26 @@ export default function TrackingTab({ profile }: { profile: any }) {
             <div className="flex flex-col gap-3">
               {tracked.map((creator) => (
                 <div key={creator.id} className="flex items-center gap-2.5">
-                  <Avatar src={creator.avatar_url} name={creator.username} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white/80 text-[12px] font-medium truncate">{creator.username}</p>
-                    <p className="text-white/30 text-[11px]">
-                      {creator.entry_count} {creator.entry_count === 1 ? 'entry' : 'entries'}
-                      {creator.new_count > 0 && <span className="text-blue-400 ml-1">· {creator.new_count} new</span>}
-                    </p>
-                  </div>
-                  <button onClick={() => handleUntrack(creator.id)}
-                    className="flex-shrink-0 text-[10px] font-medium px-2.5 py-1 rounded-lg border border-white/[0.10] text-white/35 hover:text-white/60 hover:border-white/20 transition-colors">
+                  {/* Clickable avatar + name */}
+                  <button
+                    onClick={() => goToProfile(creator.username)}
+                    className="flex items-center gap-2.5 flex-1 min-w-0 text-left group"
+                  >
+                    <Avatar src={creator.avatar_url} name={creator.username} size="sm" />
+                    <div className="min-w-0">
+                      <p className="text-white/80 text-[12px] font-medium truncate group-hover:text-white transition-colors">
+                        @{creator.username}
+                      </p>
+                      <p className="text-white/30 text-[11px]">
+                        {creator.entry_count} {creator.entry_count === 1 ? 'entry' : 'entries'}
+                        {creator.new_count > 0 && <span className="text-blue-400 ml-1">· {creator.new_count} new</span>}
+                      </p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleUntrack(creator.id)}
+                    className="flex-shrink-0 text-[10px] font-medium px-2.5 py-1 rounded-lg border border-white/[0.10] text-white/35 hover:text-white/60 hover:border-white/20 transition-colors"
+                  >
                     Untrack
                   </button>
                 </div>
@@ -399,25 +406,29 @@ export default function TrackingTab({ profile }: { profile: any }) {
 
         {/* Recent Activity */}
         <div className="border border-white/[0.10] bg-[#0A0A0F] flex flex-col"
-          style={{ borderRadius: '16px', padding: '15px', gap: '12px' }}>
+          style={{ borderRadius:'16px', padding:'15px', gap:'12px' }}>
           <p className="text-white/55 text-[11px] font-semibold tracking-[0.12em] uppercase">Recent Activity</p>
           {activity.length === 0 ? (
             <p className="text-white/20 text-[12px]">No recent activity.</p>
           ) : (
             <div className="flex flex-col gap-3">
               {activity.map((item) => (
-                <div key={item.id} className="flex items-start gap-2.5">
+                <button
+                  key={item.id}
+                  onClick={() => goToProfile(item.username)}
+                  className="flex items-start gap-2.5 text-left w-full group"
+                >
                   <Avatar src={item.avatar_url} name={item.username} size="sm" />
                   <div className="flex-1 min-w-0">
                     <p className="text-white/70 text-[12px] leading-tight">
-                      <span className="font-medium">@{item.username}</span>
+                      <span className="font-medium group-hover:text-white transition-colors">@{item.username}</span>
                       <span className="text-white/40"> secured a {item.platform} entry</span>
                     </p>
                     <p className="text-white/25 text-[10px] mt-0.5">
-                      {timeAgo(item.secured_at)} · {new Date(item.secured_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {timeAgo(item.secured_at)} · {new Date(item.secured_at).toLocaleDateString('en-US', { month:'short', day:'numeric' })}
                     </p>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -425,8 +436,8 @@ export default function TrackingTab({ profile }: { profile: any }) {
 
         {/* Tip */}
         <div className="border border-white/[0.10] bg-[#0A0A0F] flex flex-col"
-          style={{ borderRadius: '12px', padding: '12px', gap: '6px' }}>
-          <p className="text-[13px] font-bold" style={{ color: '#0038FF' }}>Tip</p>
+          style={{ borderRadius:'12px', padding:'12px', gap:'6px' }}>
+          <p className="text-[13px] font-bold" style={{ color:'#0038FF' }}>Tip</p>
           <p className="text-white font-semibold text-[13px] leading-tight">Track top builders</p>
           <p className="text-white/35 text-[11px] leading-relaxed">
             Tracking adds their new secured entries to this feed as they publish — with no algorithm.
