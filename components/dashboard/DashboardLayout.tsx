@@ -17,29 +17,17 @@ export default function DashboardLayout({ children, user }: { children: React.Re
   useEffect(() => {
     if (!user?.email) return
 
-    const init = async () => {
-      // Use maybeSingle() — never throws 406 when no row found
-      const { data: adminRow } = await supabase
-        .from('admin_users')
-        .select('id')
-        .eq('email', user.email)
-        .maybeSingle()   // ← was .single() which 406'd for non-admin users
-
-      if (adminRow) {
-        router.replace('/admin/dashboard')
-        return
-      }
-
-      const { data } = await supabase
-        .from('users')
-        .select('id, username, avatar_url')
-        .eq('email', user.email)
-        .maybeSingle()
-
-      setProfile(data)
-    }
-
-    init()
+    // REMOVED: admin redirect check — this was causing false logouts.
+    // Admin check only happens on the admin login page itself.
+    // Just load the user profile and nothing else.
+    supabase
+      .from('users')
+      .select('id, username, avatar_url')
+      .eq('email', user.email)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setProfile(data)
+      })
   }, [user?.email])
 
   const initials = (profile?.username || user?.email || 'U')[0].toUpperCase()
@@ -78,8 +66,8 @@ export default function DashboardLayout({ children, user }: { children: React.Re
             )}
           </div>
           {profile?.avatar_url
-            ? <img src={profile.avatar_url} alt="avatar" className="w-9 h-9 rounded-full object-cover" />
-            : <div className={`w-9 h-9 rounded-full flex items-center justify-center ${avatarBg}`}>
+            ? <img src={profile.avatar_url} alt="avatar" className="w-9 h-9 rounded-full object-cover cursor-pointer" onClick={() => router.push('/profile')} />
+            : <div className={`w-9 h-9 rounded-full flex items-center justify-center cursor-pointer ${avatarBg}`} onClick={() => router.push('/profile')}>
                 <span className="text-white text-[13px] font-bold">{initials}</span>
               </div>
           }

@@ -30,6 +30,7 @@ export default function ConversationPage() {
   const { conversationId } = useParams<{ conversationId: string }>()
   const router = useRouter()
 
+  // Keep user state even if some queries fail
   const [user,         setUser]         = useState<any>(null)
   const [profile,      setProfile]      = useState<any>(null)
   const [other,        setOther]        = useState<any>(null)
@@ -37,8 +38,7 @@ export default function ConversationPage() {
   const [input,        setInput]        = useState('')
   const [sending,      setSending]      = useState(false)
   const [contextEntry, setContextEntry] = useState<any>(null)
-  const [ready,        setReady]        = useState(false)   // replaces loadError — never redirects
-  const [notFound,     setNotFound]     = useState(false)
+  const [status,       setStatus]       = useState<'loading'|'ready'|'notfound'>('loading')
 
   const bottomRef  = useRef<HTMLDivElement>(null)
   const profileRef = useRef<any>(null)
@@ -46,88 +46,97 @@ export default function ConversationPage() {
   useEffect(() => {
     if (!conversationId) return
 
-    // Cancellation flag — prevents stale async from touching state after unmount
     let cancelled = false
 
     const init = async () => {
-      // 1. Get session
-      const { data: { session } } = await supabase.auth.getSession()
-      if (cancelled) return
-      if (!session) {
-        // Don't redirect — just show "not signed in" state
-        setNotFound(true)
-        setReady(true)
-        return
-      }
-      setUser(session.user)
+      try {
+        // 1 — session
+        const { data: { session } } = await supabase.auth.getSession()
+        if (cancelled) return
 
-      // 2. Get current user profile
-      const { data: prof } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', session.user.email)
-        .maybeSingle()
-      if (cancelled || !prof) return
+        if (!session?.user) {
+          // No session — show not found, do NOT redirect
+          if (!cancelled) setStatus('notfound')
+          return
+        }
 
-      setProfile(prof)
-      profileRef.current = prof
+        setUser(session.user)
 
-      // 3. Load conversation — plain query, no joins
-      const { data: convo } = await supabase
-        .from('conversations')
-        .select('id, participant_1, participant_2, context_entry_id')
-        .eq('id', conversationId)
-        .maybeSingle()
-
-      if (cancelled) return
-
-      if (!convo) {
-        // Conversation not found — show error, DO NOT redirect
-        setNotFound(true)
-        setReady(true)
-        return
-      }
-
-      // 4. Load other user
-      const otherId = convo.participant_1 === prof.id ? convo.participant_2 : convo.participant_1
-      const { data: otherUser } = await supabase
-        .from('users')
-        .select('id, username, avatar_url')
-        .eq('id', otherId)
-        .maybeSingle()
-      if (!cancelled) setOther(otherUser)
-
-      // 5. Load context entry if any
-      if (convo.context_entry_id) {
-        const { data: entry } = await supabase
-          .from('entries')
-          .select('title, platform, url')
-          .eq('id', convo.context_entry_id)
+        // 2 — profile
+        const { data: prof } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', session.user.email)
           .maybeSingle()
-        if (!cancelled && entry) setContextEntry(entry)
+
+        if (cancelled) return
+        if (!prof) {
+          setStatus('notfound')
+          return
+        }
+
+        setProfile(prof)
+        profileRef.current = prof
+
+        // 3 — conversation (plain, no joins)
+        const { data: convo } = await supabase
+          .from('conversations')
+          .select('id, participant_1, participant_2, context_entry_id')
+          .eq('id', conversationId)
+          .maybeSingle()
+
+        if (cancelled) return
+        if (!convo) {
+          setStatus('notfound')
+          return
+        }
+
+        // 4 — other user
+        const otherId = convo.participant_1 === prof.id ? convo.participant_2 : convo.participant_1
+        const { data: otherUser } = await supabase
+          .from('users')
+          .select('id, username, avatar_url')
+          .eq('id', otherId)
+          .maybeSingle()
+
+        if (!cancelled && otherUser) setOther(otherUser)
+
+        // 5 — context entry
+        if (convo.context_entry_id) {
+          const { data: entry } = await supabase
+            .from('entries')
+            .select('title, platform, url')
+            .eq('id', convo.context_entry_id)
+            .maybeSingle()
+          if (!cancelled && entry) setContextEntry(entry)
+        }
+
+        // 6 — messages
+        const { data: msgs } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('conversation_id', conversationId)
+          .order('created_at', { ascending: true })
+
+        if (!cancelled) setMessages(msgs || [])
+
+        // 7 — mark as read (fire and forget)
+        supabase.from('messages')
+          .update({ read: true })
+          .eq('conversation_id', conversationId)
+          .neq('sender_id', prof.id)
+          .eq('read', false)
+
+        if (!cancelled) setStatus('ready')
+
+      } catch (err) {
+        // Never redirect on error — just show not found UI
+        console.error('Conversation load error:', err)
+        if (!cancelled) setStatus('notfound')
       }
-
-      // 6. Load messages
-      const { data: msgs } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true })
-      if (!cancelled) setMessages(msgs || [])
-
-      // 7. Mark received as read
-      await supabase
-        .from('messages')
-        .update({ read: true })
-        .eq('conversation_id', conversationId)
-        .neq('sender_id', prof.id)
-        .eq('read', false)
-
-      if (!cancelled) setReady(true)
     }
 
     init()
-
     return () => { cancelled = true }
   }, [conversationId])
 
@@ -136,9 +145,9 @@ export default function ConversationPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Real-time subscription
+  // Real-time
   useEffect(() => {
-    if (!conversationId || !ready) return
+    if (status !== 'ready' || !conversationId) return
 
     const channel = supabase
       .channel(`conv:${conversationId}`)
@@ -160,7 +169,7 @@ export default function ConversationPage() {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [conversationId, ready])
+  }, [status, conversationId])
 
   const sendMessage = async () => {
     if (!input.trim() || !profile || sending) return
@@ -176,15 +185,13 @@ export default function ConversationPage() {
     setSending(false)
   }
 
-  // Loading state — shows spinner, no redirect
-  if (!ready) return (
+  if (status === 'loading') return (
     <div className="min-h-screen bg-black flex items-center justify-center">
       <div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-white animate-spin" />
     </div>
   )
 
-  // Not found state — back button only, no redirect
-  if (notFound) return (
+  if (status === 'notfound') return (
     <DashboardLayout user={user || {}}>
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <div className="w-14 h-14 rounded-full bg-white/[0.05] border border-white/[0.08] flex items-center justify-center mb-4">
@@ -192,8 +199,8 @@ export default function ConversationPage() {
             <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
           </svg>
         </div>
-        <p className="text-white/40 text-[14px] mb-1">Conversation not found.</p>
-        <p className="text-white/25 text-[12px] mb-5">It may have been deleted or you don't have access.</p>
+        <p className="text-white/40 text-[14px] mb-1 font-medium">Conversation not found</p>
+        <p className="text-white/25 text-[12px] mb-5">It may have been removed or you don't have access.</p>
         <button onClick={() => router.push('/messages')}
           className="px-5 py-2.5 rounded-xl text-white text-[13px] font-semibold"
           style={{ background:'#0038FF' }}>
@@ -245,18 +252,18 @@ export default function ConversationPage() {
           )}
         </div>
 
-        {/* Messages list */}
+        {/* Messages */}
         <div className="flex-1 overflow-y-auto flex flex-col gap-2 pb-2">
           {messages.length === 0 && other && (
             <div className="flex flex-col items-center justify-center flex-1 text-center py-10">
               <Avatar src={other.avatar_url} name={other.username || '?'} />
               <p className="text-white/55 text-[14px] font-medium mt-3">@{other.username}</p>
-              <p className="text-white/25 text-[12px] mt-1">Send a message to start the conversation.</p>
+              <p className="text-white/25 text-[12px] mt-1">Say hello to start the conversation.</p>
             </div>
           )}
 
           {messages.map((msg, idx) => {
-            const isMe    = msg.sender_id === profile?.id
+            const isMe     = msg.sender_id === profile?.id
             const showTime = idx === 0 ||
               new Date(msg.created_at).getTime() - new Date(messages[idx - 1].created_at).getTime() > 300000
 
