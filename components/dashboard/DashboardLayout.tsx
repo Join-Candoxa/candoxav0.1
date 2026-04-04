@@ -18,12 +18,12 @@ export default function DashboardLayout({ children, user }: { children: React.Re
     if (!user?.email) return
 
     const init = async () => {
-      // If this email belongs to an admin, kick them out of the user dashboard
+      // Use maybeSingle() — never throws 406 when no row found
       const { data: adminRow } = await supabase
         .from('admin_users')
         .select('id')
         .eq('email', user.email)
-        .single()
+        .maybeSingle()   // ← was .single() which 406'd for non-admin users
 
       if (adminRow) {
         router.replace('/admin/dashboard')
@@ -34,13 +34,13 @@ export default function DashboardLayout({ children, user }: { children: React.Re
         .from('users')
         .select('id, username, avatar_url')
         .eq('email', user.email)
-        .single()
+        .maybeSingle()
 
       setProfile(data)
     }
 
     init()
-  }, [user])
+  }, [user?.email])
 
   const initials = (profile?.username || user?.email || 'U')[0].toUpperCase()
   const palette  = ['bg-blue-700','bg-purple-700','bg-green-700','bg-rose-700','bg-amber-700']
