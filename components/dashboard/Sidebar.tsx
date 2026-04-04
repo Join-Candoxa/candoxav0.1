@@ -6,41 +6,28 @@ import { supabase } from '@/lib/supabase'
 import Image from 'next/image'
 
 const navItems = [
-  { label: 'Dashboard',  icon: '/icons/home.png',     path: '/dashboard' },
-  { label: 'My Profile', icon: '/icons/user.png',     path: '/profile'   },
-  { label: 'Secured',    icon: '/icons/secured.png',  path: '/secured'   },
-  { label: 'Discover',   icon: '/icons/discover.png', path: '/discover'  },
-  { label: 'Growth',     icon: '/icons/growth.png',   path: '/growth'    },
-  { label: 'Messages',   icon: '/icons/home.png',     path: '/messages', svgIcon: true },
-  { label: 'Settings',   icon: '/icons/setting.png',  path: '/settings'  },
+  { label: 'Dashboard',  icon: '/icons/home.png',    path: '/dashboard' },
+  { label: 'My Profile', icon: '/icons/user.png',    path: '/profile'   },
+  { label: 'Secured',    icon: '/icons/secured.png', path: '/secured'   },
+  { label: 'Discover',   icon: '/icons/discover.png',path: '/discover'  },
+  { label: 'Growth',     icon: '/icons/growth.png',  path: '/growth'    },
+  { label: 'Messages',   icon: '',                   path: '/messages', svgIcon: true },
+  { label: 'Settings',   icon: '/icons/setting.png', path: '/settings'  },
 ]
 
+// Mobile nav restores Profile, no Messages item
 const mobileNavItems = [
-  { label: 'Home',     icon: '/icons/home.png',     path: '/dashboard' },
-  { label: 'Discover', icon: '/icons/discover.png', path: '/discover'  },
-  { label: 'Growth',   icon: '/icons/growth.png',   path: '/growth'    },
-  { label: 'Messages', icon: '/icons/home.png',     path: '/messages', svgIcon: true },
+  { label: 'Home',     icon: '/icons/home.png',    path: '/dashboard' },
+  { label: 'Discover', icon: '/icons/discover.png',path: '/discover'  },
+  { label: 'Growth',   icon: '/icons/growth.png',  path: '/growth'    },
+  { label: 'Profile',  icon: '/icons/user.png',    path: '/profile'   },
 ]
 
-// SVG icon for Messages (chat bubble)
-function MessageIcon({ active }: { active: boolean }) {
+function DesktopMsgIcon({ active }: { active: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
-      className="w-4 h-4 flex-shrink-0"
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+      strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 flex-shrink-0"
       style={{ color: active ? 'white' : 'rgba(255,255,255,0.55)' }}>
-      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-    </svg>
-  )
-}
-
-function MobileMessageIcon({ active }: { active: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
-      className="w-[22px] h-[22px]"
-      style={active
-        ? { filter:'drop-shadow(0 0 6px #0038FF)', color:'#0038FF' }
-        : { color:'rgba(255,255,255,0.4)' }
-      }>
       <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
     </svg>
   )
@@ -72,7 +59,7 @@ export default function Sidebar({ user, onClose }: { user: any; onClose?: () => 
                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-150 text-left
                   ${active ? 'bg-white/[0.08] text-white' : 'text-white/45 hover:text-white/75 hover:bg-white/[0.04]'}`}>
                 {item.svgIcon
-                  ? <MessageIcon active={active} />
+                  ? <DesktopMsgIcon active={active} />
                   : <Image src={item.icon} alt={item.label} width={16} height={16}
                       className={`flex-shrink-0 transition-all duration-150 ${active ? 'brightness-0 invert' : 'brightness-0 invert opacity-55'}`} />
                 }
@@ -92,24 +79,20 @@ export default function Sidebar({ user, onClose }: { user: any; onClose?: () => 
         </div>
       </div>
 
-      {/* ── Mobile bottom nav ── */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0F] border-t border-white/[0.06] flex items-center justify-around px-2 pb-safe"
-        style={{ paddingBottom:'max(8px, env(safe-area-inset-bottom))' }}>
+      {/* ── Mobile bottom nav — Profile restored, Messages removed ── */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0F] border-t border-white/[0.06] flex items-center justify-around px-2"
+        style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
 
         {mobileNavItems.slice(0, 2).map((item) => {
-          const active = pathname === item.path || pathname.startsWith(item.path + '/')
+          const active = pathname === item.path
           return (
             <button key={item.path} onClick={() => navigate(item.path)}
               className="flex flex-col items-center gap-1 px-3 py-2 flex-1">
-              {item.svgIcon
-                ? <MobileMessageIcon active={active} />
-                : <Image src={item.icon} alt={item.label} width={22} height={22}
-                    style={active
-                      ? { filter:'drop-shadow(0 0 6px #0038FF) invert(27%) sepia(99%) saturate(7496%) hue-rotate(220deg) brightness(110%)' }
-                      : { filter:'brightness(0) invert(1)', opacity:0.4 }} />
-              }
-              <span className="text-[10px] font-medium transition-colors"
-                style={{ color: active ? '#0038FF' : 'rgba(255,255,255,0.4)' }}>
+              <Image src={item.icon} alt={item.label} width={22} height={22}
+                style={active
+                  ? { filter:'drop-shadow(0 0 6px #0038FF) invert(27%) sepia(99%) saturate(7496%) hue-rotate(220deg) brightness(110%)' }
+                  : { filter:'brightness(0) invert(1)', opacity:0.4 }} />
+              <span className="text-[10px] font-medium" style={{ color: active ? '#0038FF' : 'rgba(255,255,255,0.4)' }}>
                 {item.label}
               </span>
             </button>
@@ -131,15 +114,11 @@ export default function Sidebar({ user, onClose }: { user: any; onClose?: () => 
           return (
             <button key={item.path} onClick={() => navigate(item.path)}
               className="flex flex-col items-center gap-1 px-3 py-2 flex-1">
-              {item.svgIcon
-                ? <MobileMessageIcon active={active} />
-                : <Image src={item.icon} alt={item.label} width={22} height={22}
-                    style={active
-                      ? { filter:'drop-shadow(0 0 6px #0038FF) invert(27%) sepia(99%) saturate(7496%) hue-rotate(220deg) brightness(110%)' }
-                      : { filter:'brightness(0) invert(1)', opacity:0.4 }} />
-              }
-              <span className="text-[10px] font-medium transition-colors"
-                style={{ color: active ? '#0038FF' : 'rgba(255,255,255,0.4)' }}>
+              <Image src={item.icon} alt={item.label} width={22} height={22}
+                style={active
+                  ? { filter:'drop-shadow(0 0 6px #0038FF) invert(27%) sepia(99%) saturate(7496%) hue-rotate(220deg) brightness(110%)' }
+                  : { filter:'brightness(0) invert(1)', opacity:0.4 }} />
+              <span className="text-[10px] font-medium" style={{ color: active ? '#0038FF' : 'rgba(255,255,255,0.4)' }}>
                 {item.label}
               </span>
             </button>

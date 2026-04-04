@@ -10,7 +10,8 @@ function timeLabel(d: string) {
   const date = new Date(d)
   const diff  = Date.now() - date.getTime()
   if (diff < 86400000) return date.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })
-  return date.toLocaleDateString('en-US', { month:'short', day:'numeric' }) + ' ' + date.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })
+  return date.toLocaleDateString('en-US', { month:'short', day:'numeric' }) + ' ' +
+    date.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })
 }
 
 function Avatar({ src, name }: { src: string | null; name: string }) {
@@ -18,51 +19,74 @@ function Avatar({ src, name }: { src: string | null; name: string }) {
   const palette = ['bg-blue-700','bg-purple-700','bg-green-700','bg-rose-700','bg-amber-700','bg-cyan-700']
   const color = palette[i.charCodeAt(0) % palette.length]
   if (src) return <img src={src} alt={name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-  return <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${color}`}><span className="text-white text-[12px] font-bold">{i}</span></div>
+  return <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${color}`}>
+    <span className="text-white text-[12px] font-bold">{i}</span>
+  </div>
 }
 
 export default function ConversationPage() {
   const { conversationId } = useParams<{ conversationId: string }>()
   const router = useRouter()
 
-  const [user,        setUser]        = useState<any>(null)
-  const [profile,     setProfile]     = useState<any>(null)
-  const [other,       setOther]       = useState<any>(null)
-  const [messages,    setMessages]    = useState<any[]>([])
-  const [input,       setInput]       = useState('')
-  const [sending,     setSending]     = useState(false)
-  const [contextEntry,setContextEntry]= useState<any>(null)
+  const [user,         setUser]         = useState<any>(null)
+  const [profile,      setProfile]      = useState<any>(null)
+  const [other,        setOther]        = useState<any>(null)
+  const [messages,     setMessages]     = useState<any[]>([])
+  const [input,        setInput]        = useState('')
+  const [sending,      setSending]      = useState(false)
+  const [contextEntry, setContextEntry] = useState<any>(null)
+  const [loadError,    setLoadError]    = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const profileRef = useRef<any>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { router.push('/onboarding'); return }
       setUser(session.user)
       supabase.from('users').select('*').eq('email', session.user.email).single()
-        .then(({ data }) => { setProfile(data); if (data) fetchConvo(data) })
+        .then(({ data }) => {
+          if (data) {
+            setProfile(data)
+            profileRef.current = data
+            fetchConvo(data)
+          }
+        })
     })
   }, [conversationId])
 
   const fetchConvo = async (prof: any) => {
-    // Load conversation
+    // Step 1 — load conversation row only, no joins
     const { data: convo } = await supabase
       .from('conversations')
-      .select(`
-        id, participant_1, participant_2, context_entry_id,
-        u1:users!conversations_participant_1_fkey(id, username, avatar_url),
-        u2:users!conversations_participant_2_fkey(id, username, avatar_url),
-        entry:entries(title, platform, url)
-      `)
+      .select('id, participant_1, participant_2, context_entry_id')
       .eq('id', conversationId)
       .single()
 
-    if (!convo) { router.push('/messages'); return }
+    if (!convo) {
+      setLoadError(true)
+      return
+    }
 
-    const otherUser = convo.participant_1 === prof.id ? convo.u2 : convo.u1
+    // Step 2 — load other user separately
+    const otherId = convo.participant_1 === prof.id ? convo.participant_2 : convo.participant_1
+    const { data: otherUser } = await supabase
+      .from('users')
+      .select('id, username, avatar_url')
+      .eq('id', otherId)
+      .single()
     setOther(otherUser)
-    setContextEntry(convo.entry)
 
-    // Load messages
+    // Step 3 — load context entry if any
+    if (convo.context_entry_id) {
+      const { data: entry } = await supabase
+        .from('entries')
+        .select('title, platform, url')
+        .eq('id', convo.context_entry_id)
+        .single()
+      setContextEntry(entry)
+    }
+
+    // Step 4 — load messages
     const { data: msgs } = await supabase
       .from('messages')
       .select('*')
@@ -70,7 +94,7 @@ export default function ConversationPage() {
       .order('created_at', { ascending: true })
     setMessages(msgs || [])
 
-    // Mark received messages as read
+    // Mark received as read
     await supabase.from('messages')
       .update({ read: true })
       .eq('conversation_id', conversationId)
@@ -78,39 +102,41 @@ export default function ConversationPage() {
       .eq('read', false)
   }
 
-  // Scroll to bottom when messages change
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior:'smooth' })
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
   // Real-time subscription
   useEffect(() => {
     if (!conversationId) return
     const channel = supabase
-      .channel(`messages:${conversationId}`)
+      .channel(`conv:${conversationId}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'messages',
         filter: `conversation_id=eq.${conversationId}`,
       }, (payload) => {
-        setMessages(prev => [...prev, payload.new])
-        // Mark as read immediately if it's from the other person
-        if (profile && payload.new.sender_id !== profile.id) {
+        setMessages(prev => {
+          // Deduplicate
+          if (prev.find(m => m.id === payload.new.id)) return prev
+          return [...prev, payload.new]
+        })
+        const prof = profileRef.current
+        if (prof && payload.new.sender_id !== prof.id) {
           supabase.from('messages').update({ read: true }).eq('id', payload.new.id)
         }
       })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [conversationId, profile])
+  }, [conversationId])
 
   const sendMessage = async () => {
     if (!input.trim() || !profile || sending) return
-    setSending(true)
     const content = input.trim()
     setInput('')
-
+    setSending(true)
     await supabase.from('messages').insert({
       conversation_id: conversationId,
       sender_id:       profile.id,
@@ -120,6 +146,20 @@ export default function ConversationPage() {
     setSending(false)
   }
 
+  // Error state — show back button, don't redirect (avoids logout effect)
+  if (loadError) return (
+    <DashboardLayout user={user}>
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <p className="text-white/40 text-[14px] mb-4">Conversation not found.</p>
+        <button onClick={() => router.push('/messages')}
+          className="px-5 py-2.5 rounded-xl text-white text-[13px] font-semibold"
+          style={{ background:'#0038FF' }}>
+          Back to Messages
+        </button>
+      </div>
+    </DashboardLayout>
+  )
+
   if (!user) return (
     <div className="min-h-screen bg-black flex items-center justify-center">
       <div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-white animate-spin" />
@@ -128,7 +168,7 @@ export default function ConversationPage() {
 
   return (
     <DashboardLayout user={user}>
-      <div className="flex flex-col h-[calc(100vh-64px-48px)] md:h-[calc(100vh-64px)] max-w-2xl mx-auto">
+      <div className="flex flex-col max-w-2xl mx-auto" style={{ height:'calc(100vh - 130px)' }}>
 
         {/* Header */}
         <div className="flex items-center gap-3 pb-4 border-b border-white/[0.08] mb-4 flex-shrink-0">
@@ -138,16 +178,22 @@ export default function ConversationPage() {
               <path d="M19 12H5M12 5l-7 7 7 7"/>
             </svg>
           </button>
-          <Avatar src={other?.avatar_url} name={other?.username || '?'} />
-          <div className="flex-1 min-w-0">
-            <button onClick={() => other?.username && router.push(`/${other.username}`)}
-              className="text-white font-semibold text-[15px] hover:text-blue-300 transition-colors text-left">
-              @{other?.username}
-            </button>
-            {contextEntry && (
-              <p className="text-white/35 text-[11px] truncate">Re: {contextEntry.title}</p>
-            )}
-          </div>
+          {other ? (
+            <>
+              <Avatar src={other.avatar_url} name={other.username || '?'} />
+              <div className="flex-1 min-w-0">
+                <button onClick={() => router.push(`/${other.username}`)}
+                  className="text-white font-semibold text-[15px] hover:text-blue-300 transition-colors text-left">
+                  @{other.username}
+                </button>
+                {contextEntry && (
+                  <p className="text-white/35 text-[11px] truncate">Re: {contextEntry.title}</p>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 h-5 bg-white/[0.05] rounded animate-pulse" />
+          )}
           {contextEntry?.url && (
             <button onClick={() => window.open(contextEntry.url, '_blank', 'noopener,noreferrer')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/[0.10] text-white/45 text-[12px] hover:text-white/70 transition-colors flex-shrink-0">
@@ -161,31 +207,29 @@ export default function ConversationPage() {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto flex flex-col gap-3 pb-2">
-          {messages.length === 0 && (
+        <div className="flex-1 overflow-y-auto flex flex-col gap-2 pb-2">
+          {messages.length === 0 && other && (
             <div className="flex flex-col items-center justify-center flex-1 text-center py-10">
-              <Avatar src={other?.avatar_url} name={other?.username || '?'} />
-              <p className="text-white/55 text-[14px] font-medium mt-3">@{other?.username}</p>
+              <Avatar src={other.avatar_url} name={other.username || '?'} />
+              <p className="text-white/55 text-[14px] font-medium mt-3">@{other.username}</p>
               <p className="text-white/25 text-[12px] mt-1">Send a message to start the conversation.</p>
             </div>
           )}
           {messages.map((msg, idx) => {
             const isMe = msg.sender_id === profile?.id
-            const showTime = idx === 0 || new Date(msg.created_at).getTime() - new Date(messages[idx-1].created_at).getTime() > 300000
+            const showTime = idx === 0 ||
+              new Date(msg.created_at).getTime() - new Date(messages[idx-1].created_at).getTime() > 300000
             return (
               <div key={msg.id}>
                 {showTime && (
                   <p className="text-white/20 text-[11px] text-center my-2">{timeLabel(msg.created_at)}</p>
                 )}
                 <div className={`flex items-end gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                  {!isMe && <Avatar src={other?.avatar_url} name={other?.username || '?'} />}
+                  {!isMe && other && <Avatar src={other.avatar_url} name={other.username || '?'} />}
                   <div className="max-w-[72%]">
                     <div className={`px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed ${
-                      isMe
-                        ? 'text-white rounded-br-sm'
-                        : 'bg-white/[0.07] text-white/85 rounded-bl-sm'
-                    }`}
-                    style={isMe ? { background:'#0038FF' } : undefined}>
+                      isMe ? 'text-white rounded-br-sm' : 'bg-white/[0.07] text-white/85 rounded-bl-sm'
+                    }`} style={isMe ? { background:'#0038FF' } : undefined}>
                       {msg.content}
                     </div>
                   </div>
@@ -212,9 +256,7 @@ export default function ConversationPage() {
                 style={{ maxHeight:'120px' }}
               />
             </div>
-            <button
-              onClick={sendMessage}
-              disabled={!input.trim() || sending}
+            <button onClick={sendMessage} disabled={!input.trim() || sending}
               className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-40 transition-all hover:opacity-90"
               style={{ background:'#0038FF' }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">

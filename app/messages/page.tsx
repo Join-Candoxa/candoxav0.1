@@ -22,98 +22,173 @@ function Avatar({ src, name, size = 'md' }: { src: string | null; name: string; 
   const color = palette[i.charCodeAt(0) % palette.length]
   const sz = size === 'sm' ? 'w-9 h-9 text-[12px]' : 'w-11 h-11 text-[14px]'
   if (src) return <img src={src} alt={name} className={`${sz} rounded-full object-cover flex-shrink-0`} />
-  return <div className={`${sz} rounded-full flex items-center justify-center flex-shrink-0 ${color}`}><span className="text-white font-bold">{i}</span></div>
+  return <div className={`${sz} rounded-full flex items-center justify-center flex-shrink-0 ${color}`}>
+    <span className="text-white font-bold">{i}</span>
+  </div>
 }
 
 export default function MessagesPage() {
   const router = useRouter()
-  const [user,           setUser]           = useState<any>(null)
-  const [profile,        setProfile]        = useState<any>(null)
-  const [conversations,  setConversations]  = useState<any[]>([])
-  const [requests,       setRequests]       = useState<any[]>([])
-  const [tab,            setTab]            = useState<'chats'|'requests'>('chats')
-  const [loading,        setLoading]        = useState(true)
+  const [user,          setUser]          = useState<any>(null)
+  const [profile,       setProfile]       = useState<any>(null)
+  const [conversations, setConversations] = useState<any[]>([])
+  const [received,      setReceived]      = useState<any[]>([])
+  const [sent,          setSent]          = useState<any[]>([])
+  const [tab,           setTab]           = useState<'chats'|'requests'>('chats')
+  const [loading,       setLoading]       = useState(true)
+  const [accepting,     setAccepting]     = useState<string|null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { router.push('/onboarding'); return }
       setUser(session.user)
       supabase.from('users').select('*').eq('email', session.user.email).single()
-        .then(({ data }) => { setProfile(data); if (data) fetchAll(data) })
+        .then(({ data }) => {
+          if (data) { setProfile(data); fetchAll(data) }
+          else setLoading(false)
+        })
     })
   }, [])
 
   const fetchAll = async (prof: any) => {
-    // Conversations
+    await Promise.all([
+      fetchConversations(prof),
+      fetchRequests(prof),
+    ])
+    setLoading(false)
+  }
+
+  // ── Conversations — NO FK alias joins, split into separate queries ──────────
+  const fetchConversations = async (prof: any) => {
     const { data: convos } = await supabase
       .from('conversations')
-      .select(`
-        id, created_at,
-        participant_1, participant_2,
-        u1:users!conversations_participant_1_fkey(id, username, avatar_url),
-        u2:users!conversations_participant_2_fkey(id, username, avatar_url)
-      `)
+      .select('id, created_at, participant_1, participant_2, context_entry_id')
       .or(`participant_1.eq.${prof.id},participant_2.eq.${prof.id}`)
       .order('created_at', { ascending: false })
 
-    // Enrich with last message
-    const enriched = await Promise.all((convos || []).map(async (c: any) => {
-      const other = c.participant_1 === prof.id ? c.u2 : c.u1
+    if (!convos || convos.length === 0) { setConversations([]); return }
+
+    const enriched = await Promise.all(convos.map(async (c: any) => {
+      const otherId = c.participant_1 === prof.id ? c.participant_2 : c.participant_1
+
+      // Fetch other user separately — no FK alias needed
+      const { data: otherUser } = await supabase
+        .from('users')
+        .select('id, username, avatar_url')
+        .eq('id', otherId)
+        .single()
+
       const { data: lastMsg } = await supabase
         .from('messages')
         .select('content, created_at, sender_id, read')
         .eq('conversation_id', c.id)
         .order('created_at', { ascending: false })
-        .limit(1).single()
+        .limit(1)
+        .maybeSingle()
+
       const { count: unread } = await supabase
         .from('messages')
-        .select('*', { count:'exact', head:true })
+        .select('*', { count: 'exact', head: true })
         .eq('conversation_id', c.id)
         .eq('read', false)
         .neq('sender_id', prof.id)
-      return { ...c, other, lastMsg, unread: unread || 0 }
-    }))
-    setConversations(enriched)
 
-    // Pending contact requests
-    const { data: reqs } = await supabase
+      return { ...c, other: otherUser, lastMsg, unread: unread || 0 }
+    }))
+
+    setConversations(enriched)
+  }
+
+  // ── Requests — received + sent, no FK alias joins ─────────────────────────
+  const fetchRequests = async (prof: any) => {
+    // Received
+    const { data: recvRaw } = await supabase
       .from('contact_requests')
-      .select(`
-        id, message, created_at, status,
-        context_entry_id,
-        sender:users!contact_requests_sender_id_fkey(id, username, avatar_url),
-        entry:entries(title, platform)
-      `)
+      .select('id, message, created_at, status, context_entry_id, sender_id')
       .eq('receiver_id', prof.id)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
-    setRequests(reqs || [])
 
-    setLoading(false)
+    const recvEnriched = await Promise.all((recvRaw || []).map(async (r: any) => {
+      const { data: sender } = await supabase.from('users').select('id, username, avatar_url').eq('id', r.sender_id).single()
+      let entry = null
+      if (r.context_entry_id) {
+        const { data: e } = await supabase.from('entries').select('title, platform').eq('id', r.context_entry_id).single()
+        entry = e
+      }
+      return { ...r, sender, entry }
+    }))
+    setReceived(recvEnriched)
+
+    // Sent (pending only — shows "Requested" state)
+    const { data: sentRaw } = await supabase
+      .from('contact_requests')
+      .select('id, message, created_at, status, context_entry_id, receiver_id')
+      .eq('sender_id', prof.id)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+
+    const sentEnriched = await Promise.all((sentRaw || []).map(async (r: any) => {
+      const { data: receiver } = await supabase.from('users').select('id, username, avatar_url').eq('id', r.receiver_id).single()
+      let entry = null
+      if (r.context_entry_id) {
+        const { data: e } = await supabase.from('entries').select('title, platform').eq('id', r.context_entry_id).single()
+        entry = e
+      }
+      return { ...r, receiver, entry }
+    }))
+    setSent(sentEnriched)
   }
 
+  // ── Accept — split upsert + navigate, no FK join ──────────────────────────
   const acceptRequest = async (req: any) => {
-    if (!profile) return
-    // Create conversation
-    const p1 = req.sender.id < profile.id ? req.sender.id : profile.id
-    const p2 = req.sender.id < profile.id ? profile.id : req.sender.id
-    const { data: convo } = await supabase.from('conversations').upsert(
-      { participant_1: p1, participant_2: p2, context_entry_id: req.context_entry_id },
-      { onConflict: 'participant_1,participant_2' }
-    ).select().single()
+    if (!profile || accepting) return
+    setAccepting(req.id)
 
-    await supabase.from('contact_requests').update({ status:'accepted' }).eq('id', req.id)
+    const p1 = req.sender_id < profile.id ? req.sender_id : profile.id
+    const p2 = req.sender_id < profile.id ? profile.id : req.sender_id
 
-    if (convo) router.push(`/messages/${convo.id}`)
-    else fetchAll(profile)
+    // Upsert conversation
+    const { data: convo, error } = await supabase
+      .from('conversations')
+      .upsert(
+        { participant_1: p1, participant_2: p2, context_entry_id: req.context_entry_id || null },
+        { onConflict: 'participant_1,participant_2' }
+      )
+      .select('id')
+      .single()
+
+    // Mark request accepted
+    await supabase.from('contact_requests').update({ status: 'accepted' }).eq('id', req.id)
+
+    setAccepting(null)
+
+    if (convo?.id) {
+      router.push(`/messages/${convo.id}`)
+    } else {
+      // Fallback: find the existing conversation
+      const { data: existing } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('participant_1', p1)
+        .eq('participant_2', p2)
+        .single()
+      if (existing?.id) router.push(`/messages/${existing.id}`)
+      else { setReceived(prev => prev.filter(r => r.id !== req.id)); setAccepting(null) }
+    }
   }
 
   const declineRequest = async (req: any) => {
-    await supabase.from('contact_requests').update({ status:'declined' }).eq('id', req.id)
-    setRequests(prev => prev.filter(r => r.id !== req.id))
+    await supabase.from('contact_requests').update({ status: 'declined' }).eq('id', req.id)
+    setReceived(prev => prev.filter(r => r.id !== req.id))
   }
 
-  const pendingCount = requests.length
+  const cancelRequest = async (req: any) => {
+    await supabase.from('contact_requests').update({ status: 'cancelled' }).eq('id', req.id)
+    setSent(prev => prev.filter(r => r.id !== req.id))
+  }
+
+  const pendingCount = received.length
 
   if (!user || loading) return (
     <div className="min-h-screen bg-black flex items-center justify-center">
@@ -125,7 +200,6 @@ export default function MessagesPage() {
     <DashboardLayout user={user}>
       <div className="max-w-2xl mx-auto">
 
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-white text-[22px] font-bold tracking-tight">Messages</h1>
@@ -154,7 +228,37 @@ export default function MessagesPage() {
         {/* ── CHATS ── */}
         {tab === 'chats' && (
           <div className="flex flex-col gap-2">
-            {conversations.length === 0 ? (
+            {/* Sent requests — "Requested" state */}
+            {sent.length > 0 && (
+              <div className="mb-3">
+                <p className="text-white/35 text-[11px] font-semibold uppercase tracking-[0.10em] px-1 mb-2">Pending Requests Sent</p>
+                <div className="flex flex-col gap-2">
+                  {sent.map((req) => (
+                    <div key={req.id}
+                      className="flex items-center gap-3 bg-[#0A0A0F] border border-white/[0.08] rounded-2xl p-4">
+                      <div className="relative flex-shrink-0">
+                        <Avatar src={req.receiver?.avatar_url} name={req.receiver?.username || '?'} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-semibold text-[14px]">@{req.receiver?.username}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 flex-shrink-0" />
+                          <span className="text-yellow-400/80 text-[11px] font-medium">Requested · {timeAgo(req.created_at)}</span>
+                        </div>
+                        {req.message && <p className="text-white/35 text-[12px] mt-0.5 truncate">"{req.message}"</p>}
+                      </div>
+                      <button onClick={() => cancelRequest(req)}
+                        className="px-3 py-1.5 rounded-xl border border-white/[0.10] text-white/40 text-[11px] font-medium hover:border-red-500/30 hover:text-red-400/70 transition-colors flex-shrink-0">
+                        Cancel
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Conversations */}
+            {conversations.length === 0 && sent.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <div className="w-16 h-16 rounded-full bg-white/[0.05] border border-white/[0.08] flex items-center justify-center mb-4">
                   <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" className="w-8 h-8">
@@ -165,40 +269,47 @@ export default function MessagesPage() {
                 <p className="text-white/25 text-[13px]">Visit someone's profile and send a contact request to start chatting.</p>
               </div>
             ) : (
-              conversations.map((c) => (
-                <button key={c.id} onClick={() => router.push(`/messages/${c.id}`)}
-                  className="w-full flex items-center gap-3 bg-[#0A0A0F] border border-white/[0.08] rounded-2xl p-4 hover:border-white/[0.15] transition-colors text-left">
-                  <div className="relative flex-shrink-0">
-                    <Avatar src={c.other?.avatar_url} name={c.other?.username || '?'} />
-                    {c.unread > 0 && (
-                      <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white">
-                        {c.unread}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <p className="text-white font-semibold text-[14px]">@{c.other?.username}</p>
-                      {c.lastMsg && <span className="text-white/30 text-[11px] flex-shrink-0">{timeAgo(c.lastMsg.created_at)}</span>}
-                    </div>
-                    {c.lastMsg ? (
-                      <p className={`text-[12px] truncate ${c.unread > 0 ? 'text-white/70 font-medium' : 'text-white/35'}`}>
-                        {c.lastMsg.sender_id === profile?.id ? 'You: ' : ''}{c.lastMsg.content}
-                      </p>
-                    ) : (
-                      <p className="text-white/25 text-[12px]">No messages yet — say hello!</p>
-                    )}
-                  </div>
-                </button>
-              ))
+              <>
+                {conversations.length > 0 && (
+                  <>
+                    {sent.length > 0 && <p className="text-white/35 text-[11px] font-semibold uppercase tracking-[0.10em] px-1 mb-2">Conversations</p>}
+                    {conversations.map((c) => (
+                      <button key={c.id} onClick={() => router.push(`/messages/${c.id}`)}
+                        className="w-full flex items-center gap-3 bg-[#0A0A0F] border border-white/[0.08] rounded-2xl p-4 hover:border-white/[0.15] transition-colors text-left">
+                        <div className="relative flex-shrink-0">
+                          <Avatar src={c.other?.avatar_url} name={c.other?.username || '?'} />
+                          {c.unread > 0 && (
+                            <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white">
+                              {c.unread}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <p className="text-white font-semibold text-[14px]">@{c.other?.username}</p>
+                            {c.lastMsg && <span className="text-white/30 text-[11px] flex-shrink-0">{timeAgo(c.lastMsg.created_at)}</span>}
+                          </div>
+                          {c.lastMsg ? (
+                            <p className={`text-[12px] truncate ${c.unread > 0 ? 'text-white/70 font-medium' : 'text-white/35'}`}>
+                              {c.lastMsg.sender_id === profile?.id ? 'You: ' : ''}{c.lastMsg.content}
+                            </p>
+                          ) : (
+                            <p className="text-white/25 text-[12px]">No messages yet — say hello!</p>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </>
             )}
           </div>
         )}
 
-        {/* ── REQUESTS ── */}
+        {/* ── REQUESTS (received) ── */}
         {tab === 'requests' && (
           <div className="flex flex-col gap-3">
-            {requests.length === 0 ? (
+            {received.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <div className="w-16 h-16 rounded-full bg-white/[0.05] border border-white/[0.08] flex items-center justify-center mb-4">
                   <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" className="w-8 h-8">
@@ -210,9 +321,8 @@ export default function MessagesPage() {
                 <p className="text-white/25 text-[13px]">Contact requests from other creators will appear here.</p>
               </div>
             ) : (
-              requests.map((req) => (
+              received.map((req) => (
                 <div key={req.id} className="bg-[#0A0A0F] border border-white/[0.08] rounded-2xl p-4 flex flex-col gap-3">
-                  {/* Sender */}
                   <div className="flex items-center gap-3">
                     <Avatar src={req.sender?.avatar_url} name={req.sender?.username || '?'} size="sm" />
                     <div className="flex-1 min-w-0">
@@ -220,8 +330,6 @@ export default function MessagesPage() {
                       <p className="text-white/35 text-[11px]">{timeAgo(req.created_at)} ago</p>
                     </div>
                   </div>
-
-                  {/* Context entry */}
                   {req.entry && (
                     <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl px-3 py-2.5 flex items-center gap-2">
                       <svg viewBox="0 0 24 24" fill="none" stroke="#6B8AFF" strokeWidth="1.5" strokeLinecap="round" className="w-3.5 h-3.5 flex-shrink-0">
@@ -231,24 +339,23 @@ export default function MessagesPage() {
                       <p className="text-[#6B8AFF] text-[12px] truncate">{req.entry.title}</p>
                     </div>
                   )}
-
-                  {/* Message */}
                   {req.message && (
                     <div className="bg-white/[0.04] rounded-xl px-3 py-2.5">
                       <p className="text-white/70 text-[13px] leading-relaxed">"{req.message}"</p>
                     </div>
                   )}
-
-                  {/* Actions */}
                   <div className="flex gap-2">
                     <button onClick={() => declineRequest(req)}
                       className="flex-1 py-2.5 rounded-xl border border-white/[0.12] text-white/55 text-[13px] font-semibold hover:bg-white/[0.04] transition-colors">
                       Decline
                     </button>
-                    <button onClick={() => acceptRequest(req)}
-                      className="flex-1 py-2.5 rounded-xl text-white text-[13px] font-semibold transition-colors"
+                    <button onClick={() => acceptRequest(req)} disabled={accepting === req.id}
+                      className="flex-1 py-2.5 rounded-xl text-white text-[13px] font-semibold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
                       style={{ background:'#0038FF' }}>
-                      Accept
+                      {accepting === req.id
+                        ? <><div className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />Accepting…</>
+                        : 'Accept'
+                      }
                     </button>
                   </div>
                 </div>
