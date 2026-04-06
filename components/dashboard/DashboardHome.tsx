@@ -293,8 +293,8 @@ export default function DashboardHome({ user }: { user: any }) {
 function PlatformUpdateWidget() {
   const [announcement, setAnnouncement] = useState<any>(null)
   useEffect(() => {
-    supabase.from('announcements').select('title, body, created_at')
-      .order('created_at', { ascending: false }).limit(1).single()
+   supabase.from('announcements').select('title, body, created_at')
+  .order('created_at', { ascending: false }).limit(1).maybeSingle()
       .then(({ data }) => setAnnouncement(data))
   }, [])
   return (
