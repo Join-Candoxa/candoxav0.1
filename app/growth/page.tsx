@@ -257,8 +257,8 @@ export default function GrowthPage() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { router.push('/onboarding'); return }
       setUser(session.user)
-      supabase.from('users').select('*').eq('email', session.user.email).single()
-        .then(({ data }) => { setProfile(data); if (data) fetchAll(data) })
+    supabase.from('users').select('*').eq('email', session.user.email).maybeSingle()
+  .then(({ data }) => { if (data) { setProfile(data); fetchAll(data) } })
     })
   }, [])
 
