@@ -22,14 +22,18 @@ function Avatar({ src, name, size = 'md' }: { src: string | null; name: string; 
   const color = palette[i.charCodeAt(0) % palette.length]
   const sz = size === 'sm' ? 'w-9 h-9 text-[12px]' : 'w-11 h-11 text-[14px]'
   if (src) return <img src={src} alt={name} className={`${sz} rounded-full object-cover flex-shrink-0`} />
-  return <div className={`${sz} rounded-full flex items-center justify-center flex-shrink-0 ${color}`}>
-    <span className="text-white font-bold">{i}</span>
-  </div>
+  return (
+    <div className={`${sz} rounded-full flex items-center justify-center flex-shrink-0 ${color}`}>
+      <span className="text-white font-bold">{i}</span>
+    </div>
+  )
 }
 
 export default function MessagesPage() {
   const router = useRouter()
-  const [user,          setUser]          = useState<any>(null)
+
+  // Start with empty object not null — prevents DashboardLayout confusion
+  const [user,          setUser]          = useState<any>({})
   const [profile,       setProfile]       = useState<any>(null)
   const [conversations, setConversations] = useState<any[]>([])
   const [received,      setReceived]      = useState<any[]>([])
@@ -40,13 +44,30 @@ export default function MessagesPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) { router.push('/onboarding'); return }
+      // NEVER redirect — just show empty state if no session
+      if (!session?.user) { setLoading(false); return }
+
       setUser(session.user)
-      supabase.from('users').select('*').eq('email', session.user.email).single()
-        .then(({ data }) => {
-          if (data) { setProfile(data); fetchAll(data) }
-          else setLoading(false)
-        })
+
+      const getProfile = async () => {
+        let prof: any = null
+        if (session.user.email) {
+          const { data } = await supabase.from('users').select('*')
+            .eq('email', session.user.email).maybeSingle()
+          prof = data
+        }
+        if (!prof) {
+          const { data } = await supabase.from('users').select('*')
+            .eq('id', session.user.id).maybeSingle()
+          prof = data
+        }
+        if (prof) {
+          setProfile(prof)
+          await fetchAll(prof)
+        }
+        setLoading(false)
+      }
+      getProfile()
     })
   }, [])
 
@@ -55,11 +76,10 @@ export default function MessagesPage() {
       fetchConversations(prof),
       fetchRequests(prof),
     ])
-    setLoading(false)
   }
 
-  // ── Conversations — NO FK alias joins, split into separate queries ──────────
   const fetchConversations = async (prof: any) => {
+    // Plain query — no FK alias joins
     const { data: convos } = await supabase
       .from('conversations')
       .select('id, created_at, participant_1, participant_2, context_entry_id')
@@ -71,24 +91,18 @@ export default function MessagesPage() {
     const enriched = await Promise.all(convos.map(async (c: any) => {
       const otherId = c.participant_1 === prof.id ? c.participant_2 : c.participant_1
 
-      // Fetch other user separately — no FK alias needed
       const { data: otherUser } = await supabase
-        .from('users')
-        .select('id, username, avatar_url')
-        .eq('id', otherId)
-        .single()
+        .from('users').select('id, username, avatar_url')
+        .eq('id', otherId).maybeSingle()
 
       const { data: lastMsg } = await supabase
-        .from('messages')
-        .select('content, created_at, sender_id, read')
+        .from('messages').select('content, created_at, sender_id, read')
         .eq('conversation_id', c.id)
         .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+        .limit(1).maybeSingle()
 
       const { count: unread } = await supabase
-        .from('messages')
-        .select('*', { count: 'exact', head: true })
+        .from('messages').select('*', { count: 'exact', head: true })
         .eq('conversation_id', c.id)
         .eq('read', false)
         .neq('sender_id', prof.id)
@@ -99,7 +113,6 @@ export default function MessagesPage() {
     setConversations(enriched)
   }
 
-  // ── Requests — received + sent, no FK alias joins ─────────────────────────
   const fetchRequests = async (prof: any) => {
     // Received
     const { data: recvRaw } = await supabase
@@ -110,17 +123,19 @@ export default function MessagesPage() {
       .order('created_at', { ascending: false })
 
     const recvEnriched = await Promise.all((recvRaw || []).map(async (r: any) => {
-      const { data: sender } = await supabase.from('users').select('id, username, avatar_url').eq('id', r.sender_id).single()
+      const { data: sender } = await supabase.from('users')
+        .select('id, username, avatar_url').eq('id', r.sender_id).maybeSingle()
       let entry = null
       if (r.context_entry_id) {
-        const { data: e } = await supabase.from('entries').select('title, platform').eq('id', r.context_entry_id).single()
+        const { data: e } = await supabase.from('entries')
+          .select('title, platform').eq('id', r.context_entry_id).maybeSingle()
         entry = e
       }
       return { ...r, sender, entry }
     }))
     setReceived(recvEnriched)
 
-    // Sent (pending only — shows "Requested" state)
+    // Sent pending
     const { data: sentRaw } = await supabase
       .from('contact_requests')
       .select('id, message, created_at, status, context_entry_id, receiver_id')
@@ -129,10 +144,12 @@ export default function MessagesPage() {
       .order('created_at', { ascending: false })
 
     const sentEnriched = await Promise.all((sentRaw || []).map(async (r: any) => {
-      const { data: receiver } = await supabase.from('users').select('id, username, avatar_url').eq('id', r.receiver_id).single()
+      const { data: receiver } = await supabase.from('users')
+        .select('id, username, avatar_url').eq('id', r.receiver_id).maybeSingle()
       let entry = null
       if (r.context_entry_id) {
-        const { data: e } = await supabase.from('entries').select('title, platform').eq('id', r.context_entry_id).single()
+        const { data: e } = await supabase.from('entries')
+          .select('title, platform').eq('id', r.context_entry_id).maybeSingle()
         entry = e
       }
       return { ...r, receiver, entry }
@@ -140,7 +157,6 @@ export default function MessagesPage() {
     setSent(sentEnriched)
   }
 
-  // ── Accept — split upsert + navigate, no FK join ──────────────────────────
   const acceptRequest = async (req: any) => {
     if (!profile || accepting) return
     setAccepting(req.id)
@@ -148,17 +164,15 @@ export default function MessagesPage() {
     const p1 = req.sender_id < profile.id ? req.sender_id : profile.id
     const p2 = req.sender_id < profile.id ? profile.id : req.sender_id
 
-    // Upsert conversation
-    const { data: convo, error } = await supabase
+    const { data: convo } = await supabase
       .from('conversations')
       .upsert(
         { participant_1: p1, participant_2: p2, context_entry_id: req.context_entry_id || null },
         { onConflict: 'participant_1,participant_2' }
       )
       .select('id')
-      .single()
+      .maybeSingle()
 
-    // Mark request accepted
     await supabase.from('contact_requests').update({ status: 'accepted' }).eq('id', req.id)
 
     setAccepting(null)
@@ -166,15 +180,12 @@ export default function MessagesPage() {
     if (convo?.id) {
       router.push(`/messages/${convo.id}`)
     } else {
-      // Fallback: find the existing conversation
+      // Find existing conversation
       const { data: existing } = await supabase
-        .from('conversations')
-        .select('id')
-        .eq('participant_1', p1)
-        .eq('participant_2', p2)
-        .single()
+        .from('conversations').select('id')
+        .eq('participant_1', p1).eq('participant_2', p2).maybeSingle()
       if (existing?.id) router.push(`/messages/${existing.id}`)
-      else { setReceived(prev => prev.filter(r => r.id !== req.id)); setAccepting(null) }
+      else { setReceived(prev => prev.filter(r => r.id !== req.id)) }
     }
   }
 
@@ -188,13 +199,12 @@ export default function MessagesPage() {
     setSent(prev => prev.filter(r => r.id !== req.id))
   }
 
-  const pendingCount = received.length
+  // Open conversation — simple push, no logic
+  const openConversation = (id: string) => {
+    router.push(`/messages/${id}`)
+  }
 
-  if (!user || loading) return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-    </div>
-  )
+  const pendingCount = received.length
 
   return (
     <DashboardLayout user={user}>
@@ -211,24 +221,31 @@ export default function MessagesPage() {
         <div className="relative mb-5">
           <div className="flex gap-6">
             {[
-              { key:'chats',    label:'Chats' },
-              { key:'requests', label: pendingCount > 0 ? `Requests (${pendingCount})` : 'Requests' },
+              { key: 'chats',    label: 'Chats' },
+              { key: 'requests', label: pendingCount > 0 ? `Requests (${pendingCount})` : 'Requests' },
             ].map((t) => (
               <button key={t.key} onClick={() => setTab(t.key as any)}
                 className="pb-3 text-[14px] font-medium transition-colors relative"
                 style={{ color: tab === t.key ? '#fff' : 'rgba(255,255,255,0.40)' }}>
                 {t.label}
-                {tab === t.key && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background:'#0038FF' }} />}
+                {tab === t.key && (
+                  <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: '#0038FF' }} />
+                )}
               </button>
             ))}
           </div>
-          <div className="absolute bottom-0 left-0 right-0 h-[1px]" style={{ background:'rgba(255,255,255,0.08)' }} />
+          <div className="absolute bottom-0 left-0 right-0 h-[1px]" style={{ background: 'rgba(255,255,255,0.08)' }} />
         </div>
 
-        {/* ── CHATS ── */}
-        {tab === 'chats' && (
+        {loading && (
+          <div className="flex items-center justify-center py-20">
+            <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+          </div>
+        )}
+
+        {!loading && tab === 'chats' && (
           <div className="flex flex-col gap-2">
-            {/* Sent requests — "Requested" state */}
+            {/* Sent pending requests */}
             {sent.length > 0 && (
               <div className="mb-3">
                 <p className="text-white/35 text-[11px] font-semibold uppercase tracking-[0.10em] px-1 mb-2">Pending Requests Sent</p>
@@ -245,7 +262,9 @@ export default function MessagesPage() {
                           <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 flex-shrink-0" />
                           <span className="text-yellow-400/80 text-[11px] font-medium">Requested · {timeAgo(req.created_at)}</span>
                         </div>
-                        {req.message && <p className="text-white/35 text-[12px] mt-0.5 truncate">"{req.message}"</p>}
+                        {req.message && (
+                          <p className="text-white/35 text-[12px] mt-0.5 truncate">"{req.message}"</p>
+                        )}
                       </div>
                       <button onClick={() => cancelRequest(req)}
                         className="px-3 py-1.5 rounded-xl border border-white/[0.10] text-white/40 text-[11px] font-medium hover:border-red-500/30 hover:text-red-400/70 transition-colors flex-shrink-0">
@@ -272,9 +291,14 @@ export default function MessagesPage() {
               <>
                 {conversations.length > 0 && (
                   <>
-                    {sent.length > 0 && <p className="text-white/35 text-[11px] font-semibold uppercase tracking-[0.10em] px-1 mb-2">Conversations</p>}
+                    {sent.length > 0 && (
+                      <p className="text-white/35 text-[11px] font-semibold uppercase tracking-[0.10em] px-1 mb-2">Conversations</p>
+                    )}
                     {conversations.map((c) => (
-                      <button key={c.id} onClick={() => router.push(`/messages/${c.id}`)}
+                      /* KEY FIX: onClick uses openConversation — simple router.push */
+                      <button
+                        key={c.id}
+                        onClick={() => openConversation(c.id)}
                         className="w-full flex items-center gap-3 bg-[#0A0A0F] border border-white/[0.08] rounded-2xl p-4 hover:border-white/[0.15] transition-colors text-left">
                         <div className="relative flex-shrink-0">
                           <Avatar src={c.other?.avatar_url} name={c.other?.username || '?'} />
@@ -287,7 +311,9 @@ export default function MessagesPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">
                             <p className="text-white font-semibold text-[14px]">@{c.other?.username}</p>
-                            {c.lastMsg && <span className="text-white/30 text-[11px] flex-shrink-0">{timeAgo(c.lastMsg.created_at)}</span>}
+                            {c.lastMsg && (
+                              <span className="text-white/30 text-[11px] flex-shrink-0">{timeAgo(c.lastMsg.created_at)}</span>
+                            )}
                           </div>
                           {c.lastMsg ? (
                             <p className={`text-[12px] truncate ${c.unread > 0 ? 'text-white/70 font-medium' : 'text-white/35'}`}>
@@ -306,14 +332,15 @@ export default function MessagesPage() {
           </div>
         )}
 
-        {/* ── REQUESTS (received) ── */}
-        {tab === 'requests' && (
+        {/* Requests tab */}
+        {!loading && tab === 'requests' && (
           <div className="flex flex-col gap-3">
             {received.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <div className="w-16 h-16 rounded-full bg-white/[0.05] border border-white/[0.08] flex items-center justify-center mb-4">
                   <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" className="w-8 h-8">
-                    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
                     <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
                   </svg>
                 </div>
@@ -330,6 +357,7 @@ export default function MessagesPage() {
                       <p className="text-white/35 text-[11px]">{timeAgo(req.created_at)} ago</p>
                     </div>
                   </div>
+
                   {req.entry && (
                     <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl px-3 py-2.5 flex items-center gap-2">
                       <svg viewBox="0 0 24 24" fill="none" stroke="#6B8AFF" strokeWidth="1.5" strokeLinecap="round" className="w-3.5 h-3.5 flex-shrink-0">
@@ -339,23 +367,26 @@ export default function MessagesPage() {
                       <p className="text-[#6B8AFF] text-[12px] truncate">{req.entry.title}</p>
                     </div>
                   )}
+
                   {req.message && (
                     <div className="bg-white/[0.04] rounded-xl px-3 py-2.5">
                       <p className="text-white/70 text-[13px] leading-relaxed">"{req.message}"</p>
                     </div>
                   )}
+
                   <div className="flex gap-2">
                     <button onClick={() => declineRequest(req)}
                       className="flex-1 py-2.5 rounded-xl border border-white/[0.12] text-white/55 text-[13px] font-semibold hover:bg-white/[0.04] transition-colors">
                       Decline
                     </button>
-                    <button onClick={() => acceptRequest(req)} disabled={accepting === req.id}
-                      className="flex-1 py-2.5 rounded-xl text-white text-[13px] font-semibold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-                      style={{ background:'#0038FF' }}>
-                      {accepting === req.id
-                        ? <><div className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />Accepting…</>
-                        : 'Accept'
-                      }
+                    <button
+                      onClick={() => acceptRequest(req)}
+                      disabled={accepting === req.id}
+                      className="flex-1 py-2.5 rounded-xl text-white text-[13px] font-semibold disabled:opacity-60 flex items-center justify-center gap-2"
+                      style={{ background: '#0038FF' }}>
+                      {accepting === req.id ? (
+                        <><div className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />Accepting…</>
+                      ) : 'Accept'}
                     </button>
                   </div>
                 </div>
