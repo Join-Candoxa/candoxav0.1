@@ -97,18 +97,28 @@ export default function AddEntryModal({ user, profile, onClose, onSuccess }: Pro
           screenshotUrl = urlData?.publicUrl ?? null
         }
       }
-      const { error } = await supabase.from('entries').insert({
-        user_id:        profile?.id,
-        title,
-        description,
-        url,
-        platform,
-        screenshot_url: screenshotUrl,
-        status:         'secured',
-        secured_at:     new Date().toISOString(),
-        points:         0,
-      })
-      if (!error) { onSuccess(); onClose() }
+      // REPLACE WITH:
+if (!profile?.id) {
+  alert('Profile not loaded. Please close and try again.')
+  setLoading(false)
+  return
+}
+const { error } = await supabase.from('entries').insert({
+  user_id:        profile.id,
+  title,
+  description,
+  url,
+  platform,
+  screenshot_url: screenshotUrl,
+  status:         'secured',
+  secured_at:     new Date().toISOString(),
+  points:         0,
+})
+if (!error) {
+  onSuccess(); onClose()
+} else {
+  alert('Failed to secure: ' + error.message)
+}
     } finally {
       setLoading(false)
     }
