@@ -24,61 +24,41 @@ function fullDateTime(d: string) {
     + ' · ' + new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + ' UTC'
 }
 
-// ── Badge definitions ─────────────────────────────────────────────────────────
 const BADGES = [
-  { id: 'beginner',    label: 'Beginner',    sub: '210',          icon: '⚡', req: (p: any) => (p?.profile_strength||0) >= 0   },
-  { id: 'builder',     label: 'Builder',     sub: '50pts',        icon: '🔒', req: (p: any) => (p?.profile_strength||0) >= 50  },
-  { id: 'sec_founder', label: 'Sec. Founder',sub: '100 pts',      icon: '⭐', req: (p: any) => (p?.profile_strength||0) >= 100 },
-  { id: 'early_user',  label: 'Early User',  sub: 'Invite 5',     icon: '🕐', req: (p: any) => false },
-  { id: 'consistent',  label: 'Consistent',  sub: '7-day streak', icon: '📅', req: (p: any) => false },
-  { id: 'networker',   label: 'Networker',   sub: 'Track 10',     icon: '👥', req: (p: any) => false },
+  { id: 'beginner',    label: 'Beginner',     sub: '210',          icon: '⚡', req: (p: any) => (p?.profile_strength||0) >= 0   },
+  { id: 'builder',     label: 'Builder',      sub: '50pts',        icon: '🔒', req: (p: any) => (p?.profile_strength||0) >= 50  },
+  { id: 'sec_founder', label: 'Sec. Founder', sub: '100 pts',      icon: '⭐', req: (p: any) => (p?.profile_strength||0) >= 100 },
+  { id: 'early_user',  label: 'Early User',   sub: 'Invite 5',     icon: '🕐', req: (_: any) => false },
+  { id: 'consistent',  label: 'Consistent',   sub: '7-day streak', icon: '📅', req: (_: any) => false },
+  { id: 'networker',   label: 'Networker',    sub: 'Track 10',     icon: '👥', req: (_: any) => false },
 ]
 
-// ── Human-Readable Receipt Sheet ──────────────────────────────────────────────
 function ReceiptSheet({ entry, profile, onClose }: { entry: any; profile: any; onClose: () => void }) {
   return (
     <>
       <div className="fixed inset-0 z-50 bg-black/60" onClick={onClose} />
       <div
         className="fixed bottom-0 left-0 right-0 z-[60] flex flex-col"
-        style={{
-          background: '#0D0D14',
-          borderRadius: '20px 20px 0 0',
-          border: '1px solid rgba(255,255,255,0.10)',
-          borderBottom: 'none',
-          padding: '20px 16px 40px',
-          maxHeight: '85vh',
-          overflowY: 'auto',
-        }}
+        style={{ background:'#0D0D14', borderRadius:'20px 20px 0 0', border:'1px solid rgba(255,255,255,0.10)', borderBottom:'none', padding:'20px 16px 40px', maxHeight:'85vh', overflowY:'auto' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Handle */}
         <div className="w-10 h-1 rounded-full bg-white/20 mx-auto -mt-2 mb-4 flex-shrink-0" />
-
-        {/* Header */}
         <div className="flex items-start justify-between mb-5">
           <div>
             <h2 className="text-white text-[18px] font-bold">Human-Readable Receipt</h2>
             <p className="text-white/40 text-[12px] mt-0.5">Secured Entry · Blockchain Verified</p>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/[0.10] flex items-center justify-center text-white/60 flex-shrink-0 ml-3"
-          >
-            ✕
-          </button>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/[0.10] flex items-center justify-center text-white/60 flex-shrink-0 ml-3">✕</button>
         </div>
-
-        {/* Rows */}
         <div className="border border-white/[0.10] rounded-xl overflow-hidden">
           {[
-            { label: 'Entry',          value: entry.title,                         color: 'rgba(255,255,255,0.80)' },
-            { label: 'Creator',        value: `@${profile?.username || '—'}`,       color: 'rgba(255,255,255,0.80)' },
-            { label: 'Platform',       value: entry.platform || '—',               color: 'rgba(255,255,255,0.80)' },
-            { label: 'Secured On',     value: fullDateTime(entry.secured_at),       color: 'rgba(255,255,255,0.80)' },
-            { label: 'Status',         value: '● Secured · Indelible',             color: '#4ade80' },
+            { label: 'Entry',          value: entry.title,                                                                      color: 'rgba(255,255,255,0.80)' },
+            { label: 'Creator',        value: `@${profile?.username || '—'}`,                                                   color: 'rgba(255,255,255,0.80)' },
+            { label: 'Platform',       value: entry.platform || '—',                                                            color: 'rgba(255,255,255,0.80)' },
+            { label: 'Secured On',     value: fullDateTime(entry.secured_at),                                                    color: 'rgba(255,255,255,0.80)' },
+            { label: 'Status',         value: '● Secured · Indelible',                                                          color: '#4ade80' },
             { label: 'Blockchain Ref', value: entry.blockchain_ref ? `${entry.blockchain_ref.slice(0,18)}...` : '— (pending)', color: 'rgba(255,255,255,0.45)' },
-            { label: 'Chain',          value: entry.chain ? `${entry.chain} · Block #${entry.block_number}` : 'Base', color: 'rgba(255,255,255,0.80)' },
+            { label: 'Chain',          value: entry.chain ? `${entry.chain} · Block #${entry.block_number}` : 'Base',           color: 'rgba(255,255,255,0.80)' },
           ].map((row, i, arr) => (
             <div key={row.label}
               className={`flex items-center justify-between px-4 py-3.5 ${i < arr.length - 1 ? 'border-b border-white/[0.06]' : ''}`}>
@@ -92,7 +72,6 @@ function ReceiptSheet({ entry, profile, onClose }: { entry: any; profile: any; o
   )
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
 export default function ProfilePage({ user }: { user: any }) {
   const router  = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -101,10 +80,9 @@ export default function ProfilePage({ user }: { user: any }) {
   const [entries,       setEntries]       = useState<any[]>([])
   const [trackerCount,  setTrackerCount]  = useState(0)
   const [trackingCount, setTrackingCount] = useState(0)
-  const [activeTab,     setActiveTab]     = useState<'secured' | 'about' | 'badge'>('secured')
+  const [activeTab,     setActiveTab]     = useState<'secured'|'about'|'badge'>('secured')
   const [receipt,       setReceipt]       = useState<any | null>(null)
 
-  // Edit state
   const [editing,       setEditing]       = useState(false)
   const [displayName,   setDisplayName]   = useState('')
   const [bio,           setBio]           = useState('')
@@ -129,8 +107,8 @@ export default function ProfilePage({ user }: { user: any }) {
         setEntries(e || [])
 
         const [{ count: tby }, { count: ting }] = await Promise.all([
-          supabase.from('trackers').select('*', { count: 'exact', head: true }).eq('tracked_id', p.id),
-          supabase.from('trackers').select('*', { count: 'exact', head: true }).eq('tracker_id', p.id),
+          supabase.from('trackers').select('*', { count:'exact', head:true }).eq('tracked_id', p.id),
+          supabase.from('trackers').select('*', { count:'exact', head:true }).eq('tracker_id', p.id),
         ])
         setTrackerCount(tby || 0)
         setTrackingCount(ting || 0)
@@ -160,50 +138,73 @@ export default function ProfilePage({ user }: { user: any }) {
   }
 
   const displayAvatar = avatarPreview || avatarUrl
-  const name     = profile?.display_name || profile?.username || ''
-  const initials = (name || 'U')[0].toUpperCase()
-  const palette  = ['bg-blue-700','bg-purple-700','bg-green-700','bg-rose-700','bg-amber-700']
-  const avatarBg = palette[initials.charCodeAt(0) % palette.length]
-  const strength    = profile?.profile_strength || 0
-  const strengthPct = Math.min((strength / 500) * 100, 100)
+  const name       = profile?.display_name || profile?.username || ''
+  const initials   = (name || 'U')[0].toUpperCase()
+  const palette    = ['bg-blue-700','bg-purple-700','bg-green-700','bg-rose-700','bg-amber-700']
+  const avatarBg   = palette[initials.charCodeAt(0) % palette.length]
+  const strength   = profile?.profile_strength || 0
+  const strengthPct  = Math.min((strength / 500) * 100, 100)
   const strengthTier = strength === 0 ? 'Beginner' : strength < 100 ? 'Rising' : strength < 250 ? 'Verified' : strength < 400 ? 'Pro' : 'Elite'
 
-  // Platforms used
   const usedPlatforms = [...new Set(entries.map(e => {
     const p = (e.platform||'').toLowerCase().replace(/\s*\(.*?\)\s*/g,'').trim()
     const labels: Record<string,string> = { twitter:'X', x:'X', youtube:'YouTube', instagram:'Instagram', linkedin:'LinkedIn', github:'GitHub' }
     return labels[p] || e.platform
   }))].slice(0, 5).join(' · ')
 
-  // Member since
   const memberSince = profile?.created_at
-    ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    ? new Date(profile.created_at).toLocaleDateString('en-US', { month:'long', year:'numeric' })
     : 'January 2025'
 
-  const TABS: { key: 'secured'|'about'|'badge'; label: string }[] = [
-    { key: 'secured', label: 'Secured' },
-    { key: 'about',   label: 'About'   },
-    { key: 'badge',   label: 'Badge'   },
+  const TABS: { key:'secured'|'about'|'badge'; label: string }[] = [
+    { key:'secured', label:'Secured' },
+    { key:'about',   label:'About'   },
+    { key:'badge',   label:'Badge'   },
   ]
+
+  // ── SVG icons ──────────────────────────────────────────────────────────────
+  const SettingsIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1.8" strokeLinecap="round" className="w-4 h-4">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+    </svg>
+  )
+
+  const MessagesIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+    </svg>
+  )
+
+  const BackIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
+      <path d="M19 12H5M12 5l-7 7 7 7"/>
+    </svg>
+  )
 
   return (
     <>
       {/* ════════════════════════════════════════════════
-          MOBILE layout
+          MOBILE
       ════════════════════════════════════════════════ */}
       <div className="md:hidden flex flex-col">
 
-        {/* Page title row */}
-        <div className="flex items-center justify-between mb-5">
-          <h1 className="text-white text-[22px] font-bold">My Profile</h1>
-          <button
-            onClick={() => router.push('/settings')}
-            className="w-9 h-9 rounded-xl bg-white/[0.06] border border-white/[0.10] flex items-center justify-center"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1.8" strokeLinecap="round" className="w-4.5 h-4.5" width={18} height={18}>
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-            </svg>
+        {/* Page title row — back button + title + messages icon + settings icon */}
+        <div className="flex items-center gap-2 mb-5">
+          <button onClick={() => router.back()}
+            className="w-9 h-9 rounded-xl bg-white/[0.06] border border-white/[0.10] flex items-center justify-center flex-shrink-0">
+            <BackIcon />
+          </button>
+          <h1 className="text-white text-[22px] font-bold flex-1">My Profile</h1>
+          {/* Messages icon — takes mobile users to messages page */}
+          <button onClick={() => router.push('/messages')}
+            className="w-9 h-9 rounded-xl bg-white/[0.06] border border-white/[0.10] flex items-center justify-center">
+            <MessagesIcon />
+          </button>
+          {/* Settings icon */}
+          <button onClick={() => router.push('/settings')}
+            className="w-9 h-9 rounded-xl bg-white/[0.06] border border-white/[0.10] flex items-center justify-center">
+            <SettingsIcon />
           </button>
         </div>
 
@@ -221,7 +222,6 @@ export default function ProfilePage({ user }: { user: any }) {
             }
           </div>
           <div className="flex-1" />
-          {/* Copy profile link */}
           <button
             onClick={() => navigator.clipboard.writeText(`${window.location.origin}/${profile?.username}`)}
             className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-white/[0.15] text-white/70 text-[13px] font-medium"
@@ -234,14 +234,14 @@ export default function ProfilePage({ user }: { user: any }) {
           {editing ? (
             <button onClick={handleSave} disabled={saving}
               className="px-4 py-2 rounded-full text-white text-[13px] font-semibold disabled:opacity-50"
-              style={{ background: '#0038FF' }}>
+              style={{ background:'#0038FF' }}>
               {saving ? 'Saving...' : 'Save'}
             </button>
           ) : (
             <button onClick={() => setEditing(true)}
               className="px-4 py-2 rounded-full text-white text-[13px] font-semibold"
-              style={{ background: '#0038FF' }}>
-              Track
+              style={{ background:'#0038FF' }}>
+              Edit
             </button>
           )}
         </div>
@@ -252,10 +252,9 @@ export default function ProfilePage({ user }: { user: any }) {
         <div className="mb-3">
           {editing ? (
             <input value={displayName} onChange={(e) => setDisplayName(e.target.value)}
-              className="bg-white/[0.05] border border-white/[0.12] rounded-xl px-3 py-2 text-white text-[16px] font-bold outline-none w-full mb-1 focus:border-blue-500"
-            />
+              className="bg-white/[0.05] border border-white/[0.12] rounded-xl px-3 py-2 text-white text-[16px] font-bold outline-none w-full mb-1 focus:border-blue-500" />
           ) : (
-            <p className="text-white text-[16px] font-bold">@{profile?.username}</p>
+            <p className="text-white text-[16px] font-bold">{profile?.display_name || profile?.username}</p>
           )}
           <p className="text-white/40 text-[13px]">@{profile?.username}</p>
         </div>
@@ -264,23 +263,22 @@ export default function ProfilePage({ user }: { user: any }) {
         {editing ? (
           <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={2}
             placeholder="Write a short bio..."
-            className="w-full bg-white/[0.05] border border-white/[0.12] rounded-xl px-3 py-2.5 text-white/80 text-[13px] outline-none resize-none mb-4 focus:border-blue-500"
-          />
+            className="w-full bg-white/[0.05] border border-white/[0.12] rounded-xl px-3 py-2.5 text-white/80 text-[13px] outline-none resize-none mb-4 focus:border-blue-500" />
         ) : (
           profile?.bio && <p className="text-white/60 text-[13px] leading-relaxed mb-4">{profile.bio}</p>
         )}
 
         {/* Stats row */}
-        <div className="grid grid-cols-4 mb-4" style={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+        <div className="grid grid-cols-4 mb-4" style={{ borderRadius:'12px', border:'1px solid rgba(255,255,255,0.08)', overflow:'hidden' }}>
           {[
-            { label: 'Entries',    value: entries.length },
-            { label: 'Tracked by', value: trackerCount },
-            { label: 'Tracking',   value: trackingCount },
-            { label: 'Strength',   value: strength },
+            { label:'Entries',    value: entries.length },
+            { label:'Tracked by', value: trackerCount },
+            { label:'Tracking',   value: trackingCount },
+            { label:'Strength',   value: strength },
           ].map((s, i, arr) => (
             <div key={s.label}
               className={`flex flex-col items-center py-3 bg-[#0A0A0F] ${i < arr.length - 1 ? 'border-r border-white/[0.08]' : ''}`}>
-              <p className="text-[15px] font-bold" style={{ color: '#6B8AFF' }}>{s.value}</p>
+              <p className="text-[15px] font-bold" style={{ color:'#6B8AFF' }}>{s.value}</p>
               <p className="text-white/35 text-[10px] mt-0.5">{s.label}</p>
             </div>
           ))}
@@ -292,11 +290,11 @@ export default function ProfilePage({ user }: { user: any }) {
             <span className="text-white/55 text-[12px] font-medium">Profile Strength</span>
             <span className="text-[12px] font-semibold">
               <span className="text-white">{strength}pts</span>{' '}
-              <span style={{ color: '#6B8AFF' }}>{strengthTier}</span>
+              <span style={{ color:'#6B8AFF' }}>{strengthTier}</span>
             </span>
           </div>
           <div className="w-full h-[4px] bg-white/[0.07] rounded-full overflow-hidden">
-            <div className="h-full rounded-full" style={{ width: `${strengthPct}%`, background: '#0038FF' }} />
+            <div className="h-full rounded-full" style={{ width:`${strengthPct}%`, background:'#0038FF' }} />
           </div>
         </div>
 
@@ -310,15 +308,15 @@ export default function ProfilePage({ user }: { user: any }) {
                   className="flex-1 pb-3 text-[14px] font-medium transition-colors relative"
                   style={{ color: active ? '#fff' : 'rgba(255,255,255,0.40)' }}>
                   {t.label}
-                  {active && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: '#0038FF' }} />}
+                  {active && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background:'#0038FF' }} />}
                 </button>
               )
             })}
           </div>
-          <div className="absolute bottom-0 left-0 right-0 h-[1px]" style={{ background: 'rgba(255,255,255,0.08)' }} />
+          <div className="absolute bottom-0 left-0 right-0 h-[1px]" style={{ background:'rgba(255,255,255,0.08)' }} />
         </div>
 
-        {/* ── Secured tab ── */}
+        {/* Secured tab */}
         {activeTab === 'secured' && (
           <div className="flex flex-col gap-3">
             {entries.length === 0 ? (
@@ -338,10 +336,14 @@ export default function ProfilePage({ user }: { user: any }) {
                     )}
                   </div>
                 </div>
+                {entry.screenshot_url && (
+                  <img src={entry.screenshot_url} alt="screenshot"
+                    className="w-full rounded-xl object-cover" style={{ maxHeight:'200px' }} />
+                )}
                 <div className="flex items-center justify-between pt-1 border-t border-white/[0.06]">
                   <div className="flex items-center gap-2.5">
                     <span className="text-[11px] font-semibold px-3 py-1 rounded-full border"
-                      style={{ background:'rgba(0,56,255,0.12)', borderColor:'rgba(0,56,255,0.30)', color:'#6B8AFF', borderRadius:'300px' }}>
+                      style={{ background:'rgba(0,56,255,0.12)', borderColor:'rgba(0,56,255,0.30)', color:'#6B8AFF' }}>
                       Secured
                     </span>
                     <span className="text-white/30 text-[11px]">{shortDate(entry.secured_at)}</span>
@@ -353,22 +355,19 @@ export default function ProfilePage({ user }: { user: any }) {
           </div>
         )}
 
-        {/* ── About tab ── */}
+        {/* About tab */}
         {activeTab === 'about' && (
           <div className="flex flex-col gap-3">
-            {/* Info rows */}
             <div className="border border-white/[0.08] bg-[#0A0A0F] rounded-xl overflow-hidden">
               {[
-                { icon: '👤', label: 'CREATOR TYPE', value: profile?.creator_type || 'Indie Maker · Newsletter writer · Build-in-public' },
-                { icon: '🛡', label: 'MEMBER SINCE',  value: `${memberSince} — Early User` },
-                { icon: '📍', label: 'LOCATION',      value: profile?.location || 'Lagos, Nigeria' },
-                { icon: '📺', label: 'PLATFORMS',     value: usedPlatforms || 'X · YouTube · GitHub' },
+                { icon:'👤', label:'CREATOR TYPE', value: profile?.creator_type || 'Indie Maker · Newsletter writer · Build-in-public' },
+                { icon:'🛡', label:'MEMBER SINCE',  value: `${memberSince} — Early User` },
+                { icon:'📍', label:'LOCATION',      value: profile?.location || 'Lagos, Nigeria' },
+                { icon:'📺', label:'PLATFORMS',     value: usedPlatforms || 'X · YouTube · GitHub' },
               ].map((row, i, arr) => (
                 <div key={row.label}
                   className={`flex items-start gap-3 px-4 py-3.5 ${i < arr.length - 1 ? 'border-b border-white/[0.06]' : ''}`}>
-                  <div className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center flex-shrink-0 text-[14px]">
-                    {row.icon}
-                  </div>
+                  <div className="w-8 h-8 rounded-lg bg-white/[0.06] flex items-center justify-center flex-shrink-0 text-[14px]">{row.icon}</div>
                   <div>
                     <p className="text-white/40 text-[10px] font-semibold tracking-[0.10em] mb-0.5">{row.label}</p>
                     <p className="text-white/75 text-[13px] leading-relaxed">{row.value}</p>
@@ -376,18 +375,16 @@ export default function ProfilePage({ user }: { user: any }) {
                 </div>
               ))}
             </div>
-
-            {/* Candoxa Record */}
             <div className="border border-white/[0.08] bg-[#0A0A0F] rounded-xl p-4">
-              <p className="text-[11px] font-bold tracking-[0.12em] mb-2" style={{ color: '#0038FF' }}>CANDOXA RECORD</p>
+              <p className="text-[11px] font-bold tracking-[0.12em] mb-2" style={{ color:'#0038FF' }}>CANDOXA RECORD</p>
               <p className="text-white/55 text-[13px] leading-relaxed">
-                {entries.length} {entries.length === 1 ? 'entry' : 'entries'} permanently secured. Identity timestamped and indelible. All records independently verifiable.
+                {entries.length} {entries.length === 1 ? 'entry' : 'entries'} permanently secured. Identity timestamped and indelible.
               </p>
             </div>
           </div>
         )}
 
-        {/* ── Badge tab ── */}
+        {/* Badge tab */}
         {activeTab === 'badge' && (
           <div className="flex flex-col gap-4">
             <p className="text-white/45 text-[13px] leading-relaxed">
@@ -401,21 +398,16 @@ export default function ProfilePage({ user }: { user: any }) {
                   <div key={badge.id}
                     className="border rounded-xl p-4 flex flex-col items-center gap-2 text-center"
                     style={earned
-                      ? { borderColor: 'rgba(0,56,255,0.40)', background: 'rgba(0,56,255,0.08)' }
-                      : { borderColor: 'rgba(255,255,255,0.08)', background: '#0A0A0F' }
+                      ? { borderColor:'rgba(0,56,255,0.40)', background:'rgba(0,56,255,0.08)' }
+                      : { borderColor:'rgba(255,255,255,0.08)', background:'#0A0A0F' }
                     }>
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[18px]"
-                      style={earned
-                        ? { background: '#0038FF' }
-                        : { background: 'rgba(255,255,255,0.06)' }
-                      }>
+                      style={earned ? { background:'#0038FF' } : { background:'rgba(255,255,255,0.06)' }}>
                       {badge.icon}
                     </div>
                     <div>
                       <p className="text-white text-[11px] font-semibold leading-tight">{badge.label}</p>
-                      <p className="text-[10px] mt-0.5" style={{ color: earned ? '#6B8AFF' : 'rgba(255,255,255,0.35)' }}>
-                        {badge.sub}
-                      </p>
+                      <p className="text-[10px] mt-0.5" style={{ color: earned ? '#6B8AFF' : 'rgba(255,255,255,0.35)' }}>{badge.sub}</p>
                     </div>
                   </div>
                 )
@@ -426,15 +418,13 @@ export default function ProfilePage({ user }: { user: any }) {
       </div>
 
       {/* ════════════════════════════════════════════════
-          DESKTOP layout
+          DESKTOP
       ════════════════════════════════════════════════ */}
       <div className="hidden md:block max-w-3xl mx-auto">
 
-        {/* Profile card */}
         <div className="bg-[#0A0A0F] border border-white/[0.08] rounded-2xl p-8 mb-6">
           <div className="flex items-start justify-between mb-6">
             <div className="flex items-center gap-5">
-              {/* Avatar */}
               <div className="relative flex-shrink-0">
                 <div
                   onClick={() => editing && fileRef.current?.click()}
@@ -462,8 +452,7 @@ export default function ProfilePage({ user }: { user: any }) {
               <div>
                 {editing ? (
                   <input value={displayName} onChange={(e) => setDisplayName(e.target.value)}
-                    className="bg-black/40 border border-white/20 rounded-lg px-3 py-1.5 text-white text-lg font-bold outline-none mb-1 w-full focus:border-blue-500"
-                  />
+                    className="bg-black/40 border border-white/20 rounded-lg px-3 py-1.5 text-white text-lg font-bold outline-none mb-1 w-full focus:border-blue-500" />
                 ) : (
                   <h1 className="text-white text-xl font-bold">{profile?.display_name || profile?.username}</h1>
                 )}
@@ -487,7 +476,7 @@ export default function ProfilePage({ user }: { user: any }) {
               )}
               <button onClick={() => editing ? handleSave() : setEditing(true)}
                 className="text-white text-sm px-4 py-2 rounded-xl"
-                style={{ background: '#0038FF' }}>
+                style={{ background:'#0038FF' }}>
                 {saving ? 'Saving...' : editing ? 'Save Profile' : 'Edit Profile'}
               </button>
             </div>
@@ -496,34 +485,31 @@ export default function ProfilePage({ user }: { user: any }) {
           {editing ? (
             <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={2}
               placeholder="Write a short bio..."
-              className="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/30 outline-none resize-none mb-4 focus:border-blue-500"
-            />
+              className="w-full bg-black/40 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/30 outline-none resize-none mb-4 focus:border-blue-500" />
           ) : (
             <p className="text-white/50 text-sm mb-6">{profile?.bio || 'No bio yet.'}</p>
           )}
 
-          {/* Stats */}
           <div className="grid grid-cols-4 gap-4 mb-4">
             {[
-              { label: 'Entries',    value: entries.length },
-              { label: 'Tracked by', value: trackerCount },
-              { label: 'Tracking',   value: trackingCount },
-              { label: 'Strength',   value: strength },
+              { label:'Entries',    value: entries.length },
+              { label:'Tracked by', value: trackerCount },
+              { label:'Tracking',   value: trackingCount },
+              { label:'Strength',   value: strength },
             ].map((s) => (
               <div key={s.label} className="bg-black/30 rounded-xl p-4 text-center">
-                <p className="text-xl font-bold" style={{ color: '#6B8AFF' }}>{s.value}</p>
+                <p className="text-xl font-bold" style={{ color:'#6B8AFF' }}>{s.value}</p>
                 <p className="text-white/40 text-xs mt-1">{s.label}</p>
               </div>
             ))}
           </div>
 
-          {/* Profile strength */}
           <div className="border border-white/[0.08] rounded-xl px-4 py-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-white/55 text-[12px]">Profile Strength</span>
               <span className="text-[12px] font-semibold">
                 <span className="text-white">{strength}pts</span>{' '}
-                <span style={{ color: '#6B8AFF' }}>{strengthTier}</span>
+                <span style={{ color:'#6B8AFF' }}>{strengthTier}</span>
               </span>
             </div>
             <div className="w-full h-[3px] bg-white/[0.07] rounded-full overflow-hidden">
@@ -574,7 +560,7 @@ export default function ProfilePage({ user }: { user: any }) {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] font-semibold px-3 py-1 rounded-full border"
-                          style={{ background:'rgba(0,56,255,0.12)', borderColor:'rgba(0,56,255,0.30)', color:'#6B8AFF', borderRadius:'300px' }}>
+                          style={{ background:'rgba(0,56,255,0.12)', borderColor:'rgba(0,56,255,0.30)', color:'#6B8AFF' }}>
                           Secured
                         </span>
                         <span className="text-white/30 text-xs">{shortDate(entry.secured_at)}</span>
@@ -593,10 +579,10 @@ export default function ProfilePage({ user }: { user: any }) {
           <div className="flex flex-col gap-4">
             <div className="bg-[#0A0A0F] border border-white/[0.08] rounded-2xl overflow-hidden">
               {[
-                { icon: '👤', label: 'CREATOR TYPE', value: profile?.creator_type || 'Indie Maker · Newsletter writer · Build-in-public' },
-                { icon: '🛡', label: 'MEMBER SINCE',  value: `${memberSince} — Early User` },
-                { icon: '📍', label: 'LOCATION',      value: profile?.location || 'Lagos, Nigeria' },
-                { icon: '📺', label: 'PLATFORMS',     value: usedPlatforms || 'X · YouTube · GitHub' },
+                { icon:'👤', label:'CREATOR TYPE', value: profile?.creator_type || 'Indie Maker · Newsletter writer · Build-in-public' },
+                { icon:'🛡', label:'MEMBER SINCE',  value: `${memberSince} — Early User` },
+                { icon:'📍', label:'LOCATION',      value: profile?.location || 'Lagos, Nigeria' },
+                { icon:'📺', label:'PLATFORMS',     value: usedPlatforms || 'X · YouTube · GitHub' },
               ].map((row, i, arr) => (
                 <div key={row.label}
                   className={`flex items-start gap-3 px-5 py-4 ${i < arr.length - 1 ? 'border-b border-white/[0.06]' : ''}`}>
@@ -648,7 +634,6 @@ export default function ProfilePage({ user }: { user: any }) {
         )}
       </div>
 
-      {/* Receipt sheet — both mobile + desktop */}
       {receipt && (
         <ReceiptSheet entry={receipt} profile={profile} onClose={() => setReceipt(null)} />
       )}

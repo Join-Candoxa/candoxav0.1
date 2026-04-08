@@ -30,8 +30,6 @@ export default function ConversationPage() {
   const { conversationId } = useParams<{ conversationId: string }>()
   const router = useRouter()
 
-  // IMPORTANT: user starts as empty object, never null
-  // This prevents DashboardLayout from getting confused
   const [user,         setUser]         = useState<any>({})
   const [profile,      setProfile]      = useState<any>(null)
   const [other,        setOther]        = useState<any>(null)
@@ -51,46 +49,39 @@ export default function ConversationPage() {
 
     const load = async () => {
       try {
-        // 1. Get session — NEVER redirect if missing, just show error
         const { data: { session } } = await supabase.auth.getSession()
         if (cancelled) return
 
         if (!session?.user) {
-          if (!cancelled) setError('Session expired. Please refresh the page.')
-          if (!cancelled) setLoaded(true)
+          if (!cancelled) { setError('Session expired. Please refresh.'); setLoaded(true) }
           return
         }
 
         setUser(session.user)
 
-        // 2. Get profile — try by email first, then by id
+        // Try email first, then id
         let prof: any = null
         if (session.user.email) {
-          const { data } = await supabase
-            .from('users').select('*')
-            .eq('email', session.user.email)
-            .maybeSingle()
+          const { data } = await supabase.from('users').select('*')
+            .eq('email', session.user.email).maybeSingle()
           prof = data
         }
         if (!prof) {
-          const { data } = await supabase
-            .from('users').select('*')
-            .eq('id', session.user.id)
-            .maybeSingle()
+          const { data } = await supabase.from('users').select('*')
+            .eq('id', session.user.id).maybeSingle()
           prof = data
         }
         if (cancelled) return
 
         if (!prof) {
-          if (!cancelled) setError('Profile not found.')
-          if (!cancelled) setLoaded(true)
+          if (!cancelled) { setError('Profile not found.'); setLoaded(true) }
           return
         }
 
         setProfile(prof)
         profileRef.current = prof
 
-        // 3. Load conversation — plain query, NO joins
+        // Load conversation — no joins
         const { data: convo } = await supabase
           .from('conversations')
           .select('id, participant_1, participant_2, context_entry_id')
@@ -100,44 +91,33 @@ export default function ConversationPage() {
         if (cancelled) return
 
         if (!convo) {
-          if (!cancelled) setError('Conversation not found or you do not have access.')
-          if (!cancelled) setLoaded(true)
+          if (!cancelled) { setError('Conversation not found.'); setLoaded(true) }
           return
         }
 
-        // 4. Load other user — separate query, no FK alias
-        const otherId = convo.participant_1 === prof.id
-          ? convo.participant_2
-          : convo.participant_1
-
+        // Load other user — separate query
+        const otherId = convo.participant_1 === prof.id ? convo.participant_2 : convo.participant_1
         const { data: otherUser } = await supabase
-          .from('users')
-          .select('id, username, avatar_url')
-          .eq('id', otherId)
-          .maybeSingle()
-
+          .from('users').select('id, username, avatar_url')
+          .eq('id', otherId).maybeSingle()
         if (!cancelled && otherUser) setOther(otherUser)
 
-        // 5. Context entry
+        // Context entry
         if (convo.context_entry_id) {
           const { data: entry } = await supabase
-            .from('entries')
-            .select('title, platform, url')
-            .eq('id', convo.context_entry_id)
-            .maybeSingle()
+            .from('entries').select('title, platform, url')
+            .eq('id', convo.context_entry_id).maybeSingle()
           if (!cancelled && entry) setContextEntry(entry)
         }
 
-        // 6. Messages
+        // Messages
         const { data: msgs } = await supabase
-          .from('messages')
-          .select('*')
+          .from('messages').select('*')
           .eq('conversation_id', conversationId)
           .order('created_at', { ascending: true })
-
         if (!cancelled) setMessages(msgs || [])
 
-        // 7. Mark as read (fire and forget, no await)
+        // Mark as read (fire and forget)
         supabase.from('messages')
           .update({ read: true })
           .eq('conversation_id', conversationId)
@@ -149,10 +129,7 @@ export default function ConversationPage() {
 
       } catch (err: any) {
         console.error('Conversation load error:', err)
-        if (!cancelled) {
-          setError('Failed to load conversation. Please go back and try again.')
-          setLoaded(true)
-        }
+        if (!cancelled) { setError('Failed to load. Please go back and try again.'); setLoaded(true) }
       }
     }
 
@@ -164,7 +141,7 @@ export default function ConversationPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Real-time — only subscribe after loaded
+  // Real-time subscription
   useEffect(() => {
     if (!loaded || error || !conversationId) return
 
@@ -175,9 +152,22 @@ export default function ConversationPage() {
         filter: `conversation_id=eq.${conversationId}`,
       }, (payload) => {
         setMessages(prev => {
+          // If this is our own message replacing a temp one
+          if (payload.new.sender_id === profileRef.current?.id) {
+            const tempIdx = prev.findIndex(m =>
+              m.id.startsWith('temp-') && m.content === payload.new.content
+            )
+            if (tempIdx !== -1) {
+              const updated = [...prev]
+              updated[tempIdx] = payload.new
+              return updated
+            }
+          }
+          // Otherwise dedup and append
           if (prev.find(m => m.id === payload.new.id)) return prev
           return [...prev, payload.new]
         })
+        // Mark other person's messages as read
         const prof = profileRef.current
         if (prof && payload.new.sender_id !== prof.id) {
           supabase.from('messages').update({ read: true }).eq('id', payload.new.id).then(() => {})
@@ -193,16 +183,40 @@ export default function ConversationPage() {
     const content = input.trim()
     setInput('')
     setSending(true)
-    await supabase.from('messages').insert({
+
+    // Optimistic update — show message immediately before DB confirms
+    const tempId = `temp-${Date.now()}`
+    const optimistic = {
+      id:              tempId,
       conversation_id: conversationId,
       sender_id:       profile.id,
       content,
       read:            false,
-    })
+      created_at:      new Date().toISOString(),
+    }
+    setMessages(prev => [...prev, optimistic])
+
+    const { data: inserted } = await supabase
+      .from('messages')
+      .insert({ conversation_id: conversationId, sender_id: profile.id, content, read: false })
+      .select()
+      .maybeSingle()
+
+    // Replace temp with real message if real-time didn't already do it
+    if (inserted) {
+      setMessages(prev => {
+        if (prev.find(m => m.id === inserted.id)) {
+          // Real-time already replaced temp, remove any leftover temp
+          return prev.filter(m => m.id !== tempId)
+        }
+        return prev.map(m => m.id === tempId ? inserted : m)
+      })
+    }
+
     setSending(false)
   }
 
-  // ── Loading state — inside DashboardLayout so nav works ──
+  // Loading
   if (!loaded) return (
     <DashboardLayout user={user}>
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -214,7 +228,7 @@ export default function ConversationPage() {
     </DashboardLayout>
   )
 
-  // ── Error state — inside DashboardLayout, NO redirect ──
+  // Error — no redirect
   if (error) return (
     <DashboardLayout user={user}>
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
@@ -224,25 +238,22 @@ export default function ConversationPage() {
           </svg>
         </div>
         <p className="text-white/50 text-[14px] font-medium mb-2">{error}</p>
-        <button
-          onClick={() => router.push('/messages')}
+        <button onClick={() => router.push('/messages')}
           className="mt-2 px-5 py-2.5 rounded-xl text-white text-[13px] font-semibold"
-          style={{ background: '#0038FF' }}>
+          style={{ background:'#0038FF' }}>
           Back to Messages
         </button>
       </div>
     </DashboardLayout>
   )
 
-  // ── Chat UI ──
   return (
     <DashboardLayout user={user}>
-      <div className="flex flex-col max-w-2xl mx-auto" style={{ height: 'calc(100vh - 130px)' }}>
+      <div className="flex flex-col max-w-2xl mx-auto" style={{ height:'calc(100vh - 130px)' }}>
 
         {/* Header */}
         <div className="flex items-center gap-3 pb-4 border-b border-white/[0.08] mb-4 flex-shrink-0">
-          <button
-            onClick={() => router.push('/messages')}
+          <button onClick={() => router.push('/messages')}
             className="w-9 h-9 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center flex-shrink-0 hover:bg-white/[0.10] transition-colors">
             <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" className="w-4 h-4">
               <path d="M19 12H5M12 5l-7 7 7 7"/>
@@ -253,8 +264,7 @@ export default function ConversationPage() {
             <>
               <Avatar src={other.avatar_url} name={other.username || '?'} />
               <div className="flex-1 min-w-0">
-                <button
-                  onClick={() => router.push(`/${other.username}`)}
+                <button onClick={() => router.push(`/${other.username}`)}
                   className="text-white font-semibold text-[15px] hover:text-blue-300 transition-colors text-left">
                   @{other.username}
                 </button>
@@ -268,8 +278,7 @@ export default function ConversationPage() {
           )}
 
           {contextEntry?.url && (
-            <button
-              onClick={() => window.open(contextEntry.url, '_blank', 'noopener,noreferrer')}
+            <button onClick={() => window.open(contextEntry.url, '_blank', 'noopener,noreferrer')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/[0.10] text-white/45 text-[12px] hover:text-white/70 transition-colors flex-shrink-0">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-3.5 h-3.5">
                 <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
@@ -292,6 +301,7 @@ export default function ConversationPage() {
 
           {messages.map((msg, idx) => {
             const isMe     = msg.sender_id === profile?.id
+            const isTemp   = msg.id.startsWith('temp-')
             const showTime = idx === 0 ||
               (new Date(msg.created_at).getTime() - new Date(messages[idx - 1].created_at).getTime()) > 300000
 
@@ -301,17 +311,18 @@ export default function ConversationPage() {
                   <p className="text-white/20 text-[11px] text-center my-2">{timeLabel(msg.created_at)}</p>
                 )}
                 <div className={`flex items-end gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                  {!isMe && other && (
-                    <Avatar src={other.avatar_url} name={other.username || '?'} />
-                  )}
+                  {!isMe && other && <Avatar src={other.avatar_url} name={other.username || '?'} />}
                   <div className="max-w-[72%]">
                     <div
                       className={`px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed ${
                         isMe ? 'text-white rounded-br-sm' : 'bg-white/[0.07] text-white/85 rounded-bl-sm'
-                      }`}
-                      style={isMe ? { background: '#0038FF' } : undefined}>
+                      } ${isTemp ? 'opacity-70' : ''}`}
+                      style={isMe ? { background:'#0038FF' } : undefined}>
                       {msg.content}
                     </div>
+                    {isTemp && (
+                      <p className="text-white/25 text-[10px] text-right mt-0.5 pr-1">Sending…</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -333,14 +344,12 @@ export default function ConversationPage() {
                 placeholder="Write a message..."
                 rows={1}
                 className="w-full bg-transparent text-white/80 text-[14px] outline-none resize-none placeholder-white/25 leading-relaxed"
-                style={{ maxHeight: '120px' }}
+                style={{ maxHeight:'120px' }}
               />
             </div>
-            <button
-              onClick={sendMessage}
-              disabled={!input.trim() || sending}
+            <button onClick={sendMessage} disabled={!input.trim() || sending}
               className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 disabled:opacity-40 hover:opacity-90 transition-all"
-              style={{ background: '#0038FF' }}>
+              style={{ background:'#0038FF' }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
                 <line x1="22" y1="2" x2="11" y2="13"/>
                 <polygon points="22 2 15 22 11 13 2 9 22 2"/>
