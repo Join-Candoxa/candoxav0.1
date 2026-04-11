@@ -28,7 +28,6 @@ export default function DashboardHome({ user }: { user: any }) {
           .order('secured_at', { ascending: false })
         setEntries(entriesData || [])
 
-        // Only show regular users in trending, not admins
         const { data: trendingData } = await supabase
           .from('users')
           .select('id, username, avatar_url, profile_strength')
@@ -41,6 +40,13 @@ export default function DashboardHome({ user }: { user: any }) {
     }
     fetchData()
   }, [user])
+
+  // Listen for the + button event from Sidebar (works from any page on mobile)
+  useEffect(() => {
+    const handler = () => setShowAddEntry(true)
+    window.addEventListener('candoxa:addEntry', handler)
+    return () => window.removeEventListener('candoxa:addEntry', handler)
+  }, [])
 
   const greeting = () => {
     const h = new Date().getHours()
@@ -193,10 +199,22 @@ export default function DashboardHome({ user }: { user: any }) {
                     )}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <span className="text-[11px] font-semibold px-3 py-1 border"
-                          style={{ borderRadius:'300px', background:'rgba(0,56,255,0.12)', borderColor:'rgba(0,56,255,0.30)', color:'#6B8AFF' }}>
-                          Secured
-                        </span>
+                        {/* Onchain badge if available */}
+                        {entry.blockchain_ref ? (
+                          <a href={`https://basescan.org/tx/${entry.blockchain_ref}`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-[11px] font-semibold px-3 py-1 border rounded-full hover:opacity-80 transition-opacity"
+                            style={{ background:'rgba(0,56,255,0.12)', borderColor:'rgba(0,56,255,0.30)', color:'#6B8AFF' }}
+                            onClick={(e) => e.stopPropagation()}>
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+                            Onchain
+                          </a>
+                        ) : (
+                          <span className="text-[11px] font-semibold px-3 py-1 border"
+                            style={{ borderRadius:'300px', background:'rgba(0,56,255,0.12)', borderColor:'rgba(0,56,255,0.30)', color:'#6B8AFF' }}>
+                            Secured
+                          </span>
+                        )}
                         <span className="text-white/30 text-[12px]">
                           {new Date(entry.secured_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}
                         </span>
@@ -293,8 +311,8 @@ export default function DashboardHome({ user }: { user: any }) {
 function PlatformUpdateWidget() {
   const [announcement, setAnnouncement] = useState<any>(null)
   useEffect(() => {
-   supabase.from('announcements').select('title, body, created_at')
-  .order('created_at', { ascending: false }).limit(1).maybeSingle()
+    supabase.from('announcements').select('title, body, created_at')
+      .order('created_at', { ascending: false }).limit(1).maybeSingle()
       .then(({ data }) => setAnnouncement(data))
   }, [])
   return (

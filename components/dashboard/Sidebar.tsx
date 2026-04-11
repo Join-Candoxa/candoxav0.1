@@ -15,7 +15,6 @@ const navItems = [
   { label: 'Settings',   icon: '/icons/setting.png', path: '/settings'  },
 ]
 
-// Mobile nav restores Profile, no Messages item
 const mobileNavItems = [
   { label: 'Home',     icon: '/icons/home.png',    path: '/dashboard' },
   { label: 'Discover', icon: '/icons/discover.png',path: '/discover'  },
@@ -31,6 +30,13 @@ function DesktopMsgIcon({ active }: { active: boolean }) {
       <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
     </svg>
   )
+}
+
+// Dispatch a custom event so DashboardHome can open AddEntryModal
+function triggerAddEntry() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('candoxa:addEntry'))
+  }
 }
 
 export default function Sidebar({ user, onClose }: { user: any; onClose?: () => void }) {
@@ -79,7 +85,7 @@ export default function Sidebar({ user, onClose }: { user: any; onClose?: () => 
         </div>
       </div>
 
-      {/* ── Mobile bottom nav — Profile restored, Messages removed ── */}
+      {/* ── Mobile bottom nav ── */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0F] border-t border-white/[0.06] flex items-center justify-around px-2"
         style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
 
@@ -99,8 +105,10 @@ export default function Sidebar({ user, onClose }: { user: any; onClose?: () => 
           )
         })}
 
-        {/* Center + button */}
-        <button onClick={() => navigate('/secured')} className="flex flex-col items-center justify-center flex-shrink-0 -mt-5 px-2">
+        {/* Center + button — now opens AddEntryModal instead of navigating */}
+        <button
+          onClick={triggerAddEntry}
+          className="flex flex-col items-center justify-center flex-shrink-0 -mt-5 px-2">
           <div className="w-14 h-14 rounded-full flex items-center justify-center"
             style={{ background:'linear-gradient(287.32deg, #0038FF 0.21%, #002093 37.04%, #010103 86.23%)', boxShadow:'0 0 24px rgba(0,56,255,0.5)' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" className="w-7 h-7">
