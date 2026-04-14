@@ -388,14 +388,21 @@ export default function DiscoverPage() {
                           className="w-full rounded-xl object-cover" style={{ maxHeight:'200px' }} />
                       )}
 
-                      <div className="flex items-center justify-between pt-1 border-t border-white/[0.06]">
-                        <span className="text-[#6B8AFF] text-[12px]">{shortDate(entry.secured_at)}</span>
-                        <button
-                          onClick={() => entry.url && window.open(entry.url, '_blank', 'noopener,noreferrer')}
-                          className="text-white/35 text-[12px] hover:text-white transition-colors flex items-center gap-1">
-                          identify →
-                        </button>
-                      </div>
+                     <div className="flex items-center justify-between pt-1 border-t border-white/[0.06]">
+  <span className="text-[#6B8AFF] text-[12px]">{shortDate(entry.secured_at)}</span>
+  <div className="flex items-center gap-2">
+    <button
+      onClick={() => router.push(`/entries/${entry.id}`)}
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/[0.10] text-white/45 text-[12px] font-medium hover:border-white/20 hover:text-white/70 transition-colors">
+      View Details
+    </button>
+    <button
+      onClick={() => entry.url && window.open(entry.url, '_blank', 'noopener,noreferrer')}
+      className="text-white/35 text-[12px] hover:text-white transition-colors">
+      identify →
+    </button>
+  </div>
+</div>
                     </div>
                   ))}
                 </div>
