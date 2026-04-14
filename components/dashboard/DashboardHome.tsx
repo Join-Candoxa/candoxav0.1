@@ -219,10 +219,17 @@ export default function DashboardHome({ user }: { user: any }) {
                           {new Date(entry.secured_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}
                         </span>
                       </div>
-                      <button onClick={() => entry.url && window.open(entry.url, '_blank', 'noopener,noreferrer')}
-                        className="text-white/40 text-[13px] hover:text-white transition-colors flex items-center gap-1">
-                        identify →
-                      </button>
+                    <div className="flex items-center gap-2">
+  <button
+    onClick={() => router.push(`/entries/${entry.id}`)}
+    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/[0.10] text-white/45 text-[12px] font-medium hover:border-white/20 hover:text-white/70 transition-colors">
+    View Details
+  </button>
+  <button onClick={() => entry.url && window.open(entry.url, '_blank', 'noopener,noreferrer')}
+    className="text-white/40 text-[13px] hover:text-white transition-colors">
+    identify →
+  </button>
+</div>
                     </div>
                   </div>
                 ))}
