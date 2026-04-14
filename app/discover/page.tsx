@@ -106,7 +106,6 @@ export default function DiscoverPage() {
     ;(tRows||[]).forEach((r: any) => { tmap[r.tracked_id] = true })
     setTrackingMap(tmap)
 
-    // Builders — regular users only, exclude self
     const { data: bData } = await supabase.from('users')
       .select('id, username, avatar_url, bio, profile_strength')
       .neq('id', prof.id)
@@ -122,15 +121,12 @@ export default function DiscoverPage() {
     ;(bTracks||[]).forEach((t:any)  => { tcCounts[t.tracked_id] = (tcCounts[t.tracked_id]||0)+1 })
     setBuilders((bData||[]).map((u:any) => ({ ...u, entry_count: eCounts[u.id]||0, tracked_count: tcCounts[u.id]||0 })))
 
-    // All secured entries
     const { data: entries } = await supabase.from('entries')
       .select('id, title, description, platform, screenshot_url, secured_at, url, user_id, points, users(id, username, avatar_url, role)')
       .eq('status', 'secured')
       .order('secured_at', { ascending: false }).limit(50)
-    // Filter out entries belonging to admin accounts
     setAllEntries((entries||[]).filter((e: any) => e.users?.role !== 'admin'))
 
-    // Leaderboard — regular users only
     const { data: lb } = await supabase.from('users')
       .select('id, username, avatar_url, profile_strength')
       .neq('id', prof.id)
@@ -138,7 +134,6 @@ export default function DiscoverPage() {
       .order('profile_strength', { ascending: false }).limit(4)
     setLeaderboard(lb||[])
 
-    // Platform stats
     const { data: ap } = await supabase.from('entries').select('platform')
     const pmap: Record<string,number> = {}
     ;(ap||[]).forEach((e:any) => {
@@ -152,7 +147,7 @@ export default function DiscoverPage() {
         .map(([k,v])=>({ platform:labelMap[k]||k, count:v, icon:iconMap[k]??'/icons/others.png' }))
     )
 
-    const { data: ann } = await supabase.from('announcements').select('*').order('created_at',{ascending:false}).limit(1).single()
+    const { data: ann } = await supabase.from('announcements').select('*').order('created_at',{ascending:false}).limit(1).maybeSingle()
     setAnnouncement(ann)
   }
 
@@ -388,21 +383,22 @@ export default function DiscoverPage() {
                           className="w-full rounded-xl object-cover" style={{ maxHeight:'200px' }} />
                       )}
 
-                     <div className="flex items-center justify-between pt-1 border-t border-white/[0.06]">
-  <span className="text-[#6B8AFF] text-[12px]">{shortDate(entry.secured_at)}</span>
-  <div className="flex items-center gap-2">
-    <button
-      onClick={() => router.push(`/entries/${entry.id}`)}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/[0.10] text-white/45 text-[12px] font-medium hover:border-white/20 hover:text-white/70 transition-colors">
-      View Details
-    </button>
-    <button
-      onClick={() => entry.url && window.open(entry.url, '_blank', 'noopener,noreferrer')}
-      className="text-white/35 text-[12px] hover:text-white transition-colors">
-      identify →
-    </button>
-  </div>
-</div>
+                      {/* ── Bottom row with View Details + identify ── */}
+                      <div className="flex items-center justify-between pt-1 border-t border-white/[0.06]">
+                        <span className="text-[#6B8AFF] text-[12px]">{shortDate(entry.secured_at)}</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => router.push(`/entries/${entry.id}`)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/[0.10] text-white/45 text-[12px] font-medium hover:border-white/25 hover:text-white/70 transition-colors">
+                            View Details
+                          </button>
+                          <button
+                            onClick={() => entry.url && window.open(entry.url, '_blank', 'noopener,noreferrer')}
+                            className="text-white/35 text-[12px] hover:text-white transition-colors">
+                            identify →
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

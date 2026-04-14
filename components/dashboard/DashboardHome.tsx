@@ -41,7 +41,6 @@ export default function DashboardHome({ user }: { user: any }) {
     fetchData()
   }, [user])
 
-  // Listen for the + button event from Sidebar (works from any page on mobile)
   useEffect(() => {
     const handler = () => setShowAddEntry(true)
     window.addEventListener('candoxa:addEntry', handler)
@@ -186,7 +185,7 @@ export default function DashboardHome({ user }: { user: any }) {
                       <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-white/[0.06] flex items-center justify-center">
                         <Image src={platformIcon(entry.platform)} alt={entry.platform} width={22} height={22} className="rounded-[4px]" />
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-white font-semibold text-[14px] leading-tight">{entry.title}</p>
                         {entry.description && (
                           <p className="text-white/40 text-[12px] mt-1 leading-relaxed line-clamp-2">{entry.description}</p>
@@ -199,16 +198,12 @@ export default function DashboardHome({ user }: { user: any }) {
                     )}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        {/* Onchain badge if available */}
                         {entry.blockchain_ref ? (
-                          <a href={`https://basescan.org/tx/${entry.blockchain_ref}`}
-                            target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-[11px] font-semibold px-3 py-1 border rounded-full hover:opacity-80 transition-opacity"
-                            style={{ background:'rgba(0,56,255,0.12)', borderColor:'rgba(0,56,255,0.30)', color:'#6B8AFF' }}
-                            onClick={(e) => e.stopPropagation()}>
+                          <span className="flex items-center gap-1 text-[11px] font-semibold px-3 py-1 border rounded-full"
+                            style={{ background:'rgba(0,56,255,0.12)', borderColor:'rgba(0,56,255,0.30)', color:'#6B8AFF' }}>
                             <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
                             Onchain
-                          </a>
+                          </span>
                         ) : (
                           <span className="text-[11px] font-semibold px-3 py-1 border"
                             style={{ borderRadius:'300px', background:'rgba(0,56,255,0.12)', borderColor:'rgba(0,56,255,0.30)', color:'#6B8AFF' }}>
@@ -219,17 +214,19 @@ export default function DashboardHome({ user }: { user: any }) {
                           {new Date(entry.secured_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}
                         </span>
                       </div>
-                    <div className="flex items-center gap-2">
-  <button
-    onClick={() => router.push(`/entries/${entry.id}`)}
-    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/[0.10] text-white/45 text-[12px] font-medium hover:border-white/20 hover:text-white/70 transition-colors">
-    View Details
-  </button>
-  <button onClick={() => entry.url && window.open(entry.url, '_blank', 'noopener,noreferrer')}
-    className="text-white/40 text-[13px] hover:text-white transition-colors">
-    identify →
-  </button>
-</div>
+                      {/* ── View Details + identify buttons ── */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => router.push(`/entries/${entry.id}`)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/[0.10] text-white/45 text-[12px] font-medium hover:border-white/25 hover:text-white/70 transition-colors">
+                          View Details
+                        </button>
+                        <button
+                          onClick={() => entry.url && window.open(entry.url, '_blank', 'noopener,noreferrer')}
+                          className="text-white/40 text-[13px] hover:text-white transition-colors">
+                          identify →
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
